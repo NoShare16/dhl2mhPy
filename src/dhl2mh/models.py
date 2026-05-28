@@ -23,9 +23,16 @@ class _ApiModel(BaseModel):
 class ApiVariation(_ApiModel):
     stock_limitation: int = 0
     weight_g: int = 0
-    width_mm: int = 0
-    length_mm: int = 0
-    height_mm: int = 0
+    # Plenty uses widthMM/lengthMM/heightMM (capital MM), which alias_generator
+    # would otherwise turn into widthMm/lengthMm/heightMm — override explicitly.
+    width_mm: int = Field(default=0, alias="widthMM")
+    length_mm: int = Field(default=0, alias="lengthMM")
+    height_mm: int = Field(default=0, alias="heightMM")
+
+
+class ApiProperty(_ApiModel):
+    type_id: int
+    value: str | None = None
 
 
 class ApiOrderItem(_ApiModel):
@@ -34,6 +41,8 @@ class ApiOrderItem(_ApiModel):
     order_item_name: str | None = None
     quantity: Decimal = Decimal(0)
     variation: ApiVariation | None = None
+    # Item-level properties — typeId=1021 carries the bundle/group id
+    properties: list[ApiProperty] = Field(default_factory=list)
 
 
 class ApiAddressOption(_ApiModel):
@@ -66,11 +75,6 @@ class ApiRelation(_ApiModel):
 
 class ApiShippingPackage(_ApiModel):
     package_number: str | None = None
-
-
-class ApiProperty(_ApiModel):
-    type_id: int
-    value: str | None = None
 
 
 class ApiOrder(_ApiModel):
@@ -123,6 +127,11 @@ class OrderItem(BaseModel):
     name: str | None = None
     quantity: Decimal | None = None
     stock_limitation: int = 0
+
+    # Bundle/group key from Plenty property typeId=1021. Items sharing the same
+    # bundle_id belong together: typically one article (StockLimitation 0/1) plus
+    # zero or more services (StockLimitation 2).
+    bundle_id: str | None = None
 
     # Resolved during filter stage
     service_ids: list[int] = Field(default_factory=list)

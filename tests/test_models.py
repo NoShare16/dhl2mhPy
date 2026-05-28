@@ -29,9 +29,9 @@ def test_api_order_page_parses_plenty_camel_case():
                             "variation": {
                                 "stockLimitation": 0,
                                 "weightG": 50000,
-                                "widthMm": 2000,
-                                "lengthMm": 1000,
-                                "heightMm": 800,
+                                "widthMM": 2000,
+                                "lengthMM": 1000,
+                                "heightMM": 800,
                             },
                         }
                     ],
