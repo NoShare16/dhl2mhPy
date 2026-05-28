@@ -1,0 +1,114 @@
+"""DHL DeliverIT service mappings and filter-stage business constants.
+
+A Plenty service item (StockLimitation==2) maps to one *or more* DHL MatchCodes.
+Two mappings depend on context:
+
+* SERVICE_INSTALL (783139) → "IS" by default, "E-AN" when the article is a "Herd"
+  (Shopware category). Festwasser-Anschluss exception (→ "AWS") will be added
+  later via item attributes.
+* SERVICE_SWG (heavy-lift) and SERVICE_VPR are auto-attached by the filter
+  based on weight / other MatchCodes already on the article.
+"""
+
+from decimal import Decimal
+from typing import Final
+
+# ── Plenty service variation IDs (item.StockLimitation == 2) ───────────────
+SERVICE_AG: Final = 783116          # → AG
+SERVICE_AWS_DPW: Final = 783117     # → AWS + DPW
+SERVICE_AWS: Final = 783143         # → AWS
+SERVICE_DPW: Final = 783148         # → DPW
+SERVICE_ISEK: Final = 783149        # → ISEK
+SERVICE_KF_EAN: Final = 783141      # → KF + E-AN
+SERVICE_EAN: Final = 783140         # → E-AN
+SERVICE_SVG: Final = 783146         # → SVG
+SERVICE_LA: Final = 783145          # → LA
+SERVICE_DI: Final = 783151          # → DI
+SERVICE_INSTALL: Final = 783139     # → IS  (default) / E-AN (Herde) / AWS (Festwasser, TODO)
+SERVICE_SWG: Final = 783152         # → SWG (auto-attached when weight > 120 kg)
+SERVICE_VPR: Final = 783138         # → VPR (auto-attached when triggering codes present)
+
+SERVICE_WHITELIST: Final[frozenset[int]] = frozenset(
+    {
+        SERVICE_AG,
+        SERVICE_AWS_DPW,
+        SERVICE_AWS,
+        SERVICE_DPW,
+        SERVICE_ISEK,
+        SERVICE_KF_EAN,
+        SERVICE_EAN,
+        SERVICE_SVG,
+        SERVICE_LA,
+        SERVICE_DI,
+        SERVICE_INSTALL,
+        SERVICE_SWG,
+        SERVICE_VPR,
+    }
+)
+
+# ── Auto-attach rules ──────────────────────────────────────────────────────
+HEAVY_LIFT_SERVICE_ID: Final = SERVICE_SWG
+HEAVY_LIFT_THRESHOLD_KG: Final = Decimal("120")
+HEAVY_LIFT_MATCH_CODE: Final = "SWG"
+
+VPR_SERVICE_ID: Final = SERVICE_VPR
+VPR_MATCH_CODE: Final = "VPR"
+# Presence of any of these on an article triggers an auto-attached VPR
+VPR_TRIGGER_MATCH_CODES: Final[frozenset[str]] = frozenset(
+    {"AWS", "ISEK", "KF", "E-AN", "IS"}
+)
+
+# ── Shopware category IDs for "Herde" — flips SERVICE_INSTALL from IS to E-AN
+HERDE_CATEGORY_IDS: Final[frozenset[str]] = frozenset(
+    {
+        "01920f7e354f723aa41a2102249beb7f",
+        "01920f7eba637642a6c29a5905bf961b",
+    }
+)
+
+# Plenty StockLimitation classification
+STOCK_LIMITATION_ARTICLE: Final = (0, 1)
+STOCK_LIMITATION_SERVICE: Final = 2
+
+
+class UnknownServiceIdError(ValueError):
+    pass
+
+
+_STATIC_MATCH_CODES: Final[dict[int, tuple[str, ...]]] = {
+    SERVICE_AG: ("AG",),
+    SERVICE_AWS_DPW: ("AWS", "DPW"),
+    SERVICE_AWS: ("AWS",),
+    SERVICE_DPW: ("DPW",),
+    SERVICE_ISEK: ("ISEK",),
+    SERVICE_KF_EAN: ("KF", "E-AN"),
+    SERVICE_EAN: ("E-AN",),
+    SERVICE_SVG: ("SVG",),
+    SERVICE_LA: ("LA",),
+    SERVICE_DI: ("DI",),
+    SERVICE_SWG: ("SWG",),
+    SERVICE_VPR: ("VPR",),
+}
+
+
+def map_to_match_codes(
+    service_id: int,
+    category_ids: list[str] | frozenset[str],
+) -> list[str]:
+    """One service ID → one or more DHL MatchCodes (preserves order).
+
+    Two IDs (783117 AWS+DPW, 783141 KF+E-AN) emit two codes from a single Plenty
+    service item — they become two <Services> blocks in the DHL XML.
+
+    SERVICE_INSTALL (783139) is category-dependent: "E-AN" for Herde, else "IS".
+    Festwasser→AWS exception will be added later via item attributes.
+    """
+    if service_id == SERVICE_INSTALL:
+        if any(cid in HERDE_CATEGORY_IDS for cid in category_ids):
+            return ["E-AN"]
+        return ["IS"]
+
+    try:
+        return list(_STATIC_MATCH_CODES[service_id])
+    except KeyError:
+        raise UnknownServiceIdError(f"Unbekannte Service-ID: {service_id}") from None
