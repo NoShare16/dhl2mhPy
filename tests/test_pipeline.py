@@ -135,6 +135,9 @@ async def test_pipeline_smoke_runs_end_to_end(settings):
         router.post(f"{sw_base}/api/search/product").respond(
             200, json={"data": []}  # no categories needed for these orders
         )
+        router.post(f"{sw_base}/api/search/order").respond(
+            200, json={"data": []}  # no SW order → keep the Plenty-seeded value
+        )
 
         # DHL
         dhl_base = settings.dhl_base_url

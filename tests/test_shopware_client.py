@@ -1,10 +1,13 @@
 import json as jsonlib
+from pathlib import Path
 
 import httpx
 import pytest
 import respx
 
 from dhl2mh.clients.shopware import ShopwareAuthError, ShopwareClient
+
+SW_ORDER_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_mit_accept.json"
 
 
 async def test_get_categories_returns_ids(settings):
@@ -118,6 +121,59 @@ async def test_login_failure_raises(settings):
         async with ShopwareClient(settings) as c:
             with pytest.raises(ShopwareAuthError, match="HTTP 401"):
                 await c.get_categories("1")
+
+
+async def test_get_order_parses_line_items(settings):
+    order_json = jsonlib.loads(SW_ORDER_FIXTURE.read_text())
+    with respx.mock(base_url=settings.shopware.base_url) as router:
+        router.post("/api/oauth/token").respond(
+            200, json={"access_token": "tok", "expires_in": 600}
+        )
+        post = router.post("/api/search/order").respond(200, json=order_json)
+
+        async with ShopwareClient(settings) as c:
+            order = await c.get_order("MK89643")
+
+        assert order is not None
+        assert order.order_number == "MK89643"
+        assert len(order.line_items) == 5
+
+        # Request body matches the documented filter + associations.
+        body = jsonlib.loads(post.calls[0].request.content)
+        assert body["filter"][0]["field"] == "orderNumber"
+        assert body["filter"][0]["value"] == "MK89643"
+        assert "product" in body["associations"]["lineItems"]["associations"]
+
+        # The product line item carries the formerParentId we need to map.
+        product_li = next(li for li in order.line_items if li.type == "product")
+        assert product_li.product_id == "019290293e5871448b30d20d7ffc2a24"
+        assert product_li.payload.product_number == "771883"
+        assert (
+            product_li.payload.dvsn_product_option_former_parent_id
+            == "019ed4680e07739a8bda655a837f5cc2"
+        )
+
+        # Service options reference the same former parent.
+        service_li = next(
+            li for li in order.line_items if li.type == "dvsn-product-option"
+        )
+        assert (
+            service_li.payload.dvsn_product_option_former_parent_id
+            == "019ed4680e07739a8bda655a837f5cc2"
+        )
+
+
+async def test_get_order_returns_none_when_not_found(settings):
+    with respx.mock(base_url=settings.shopware.base_url) as router:
+        router.post("/api/oauth/token").respond(
+            200, json={"access_token": "tok", "expires_in": 600}
+        )
+        router.post("/api/search/order").respond(200, json={"data": []})
+
+        async with ShopwareClient(settings) as c:
+            order = await c.get_order("UNKNOWN")
+
+        assert order is None
 
 
 async def test_bulk_fetch_keyed_by_product_number(settings):

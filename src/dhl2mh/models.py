@@ -1,14 +1,14 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Plenty API DTOs — raw JSON shape from /rest/orders/search and /shipping/countries
 # Plenty returns camelCase keys; alias_generator handles that automatically.
 # Field set is 1:1 with the C# DTOs in Models/PlentyApi/PlentyOrderResponse.cs.
-# Real BundleId/GroupId field name is still unknown — added once we have a fixture.
+# The bundle/group id comes from item property typeId=1021 (see mapper.py).
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -101,6 +101,35 @@ class ApiCountry(_ApiModel):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Shopware API DTOs — /api/search/order with Accept: application/json (the
+# flattened, non-JSON:API shape). Only the fields we map are modelled.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class SwLineItemPayload(_ApiModel):
+    product_number: str | None = None
+    # The Shopware product id this line item was split off from (services point
+    # back to their parent article). This is the field we ultimately map onto
+    # Plenty order positions via the variant id.
+    dvsn_product_option_former_parent_id: str | None = None
+
+
+class SwOrderLineItem(_ApiModel):
+    type: str | None = None
+    label: str | None = None
+    # referencedId = the dvsn product-option id for services, the product id for
+    # real products; productId is only set for type "product".
+    referenced_id: str | None = None
+    product_id: str | None = None
+    payload: SwLineItemPayload = Field(default_factory=SwLineItemPayload)
+
+
+class SwOrder(_ApiModel):
+    order_number: str | None = None
+    line_items: list[SwOrderLineItem] = Field(default_factory=list)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Domain models — what the pipeline (filter, xml_builder, dhl_client) operates on
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -137,6 +166,18 @@ class OrderItem(BaseModel):
     service_ids: list[int] = Field(default_factory=list)
     service_match_codes: list[str] = Field(default_factory=list)
     categories: list[str] = Field(default_factory=list)
+
+    # Grouping/parent key used to fold services into their article (group_by_bundle).
+    # Seeds from bundle_id (Plenty property 1021), then gets overwritten by the
+    # Shopware dvsnProductOptionFormerParentId where one exists (matched via
+    # productNumber == str(id) during the Shopware order enrichment).
+    former_parent_id: str | None = None
+
+    @model_validator(mode="after")
+    def _seed_former_parent_id(self) -> "OrderItem":
+        if self.former_parent_id is None:
+            self.former_parent_id = self.bundle_id
+        return self
 
     packages: Decimal | None = None
     weight_kg: Decimal | None = None

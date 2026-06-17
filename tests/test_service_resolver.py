@@ -33,6 +33,7 @@ def _article(
     item_id: int = 100,
     *,
     bundle_id: str | None = None,
+    former_parent_id: str | None = None,
     weight_g: int = 5000,
     width_mm: int = 1000,
     length_mm: int = 500,
@@ -42,6 +43,7 @@ def _article(
     return OrderItem(
         id=item_id,
         bundle_id=bundle_id,
+        former_parent_id=former_parent_id,
         stock_limitation=0,
         weight_g=Decimal(weight_g),
         width_mm=width_mm,
@@ -51,8 +53,15 @@ def _article(
     )
 
 
-def _service(item_id: int, *, bundle_id: str | None = None) -> OrderItem:
-    return OrderItem(id=item_id, bundle_id=bundle_id, stock_limitation=2)
+def _service(
+    item_id: int, *, bundle_id: str | None = None, former_parent_id: str | None = None
+) -> OrderItem:
+    return OrderItem(
+        id=item_id,
+        bundle_id=bundle_id,
+        former_parent_id=former_parent_id,
+        stock_limitation=2,
+    )
 
 
 # ── single-service mapping ─────────────────────────────────────────────────
@@ -61,6 +70,17 @@ def _service(item_id: int, *, bundle_id: str | None = None) -> OrderItem:
 def test_bundle_with_one_service_resolves_match_code():
     article = _article(bundle_id="X")
     service = _service(SERVICE_AG, bundle_id="X")
+    resolve_order(_order([article, service]))
+
+    assert article.service_ids == [SERVICE_AG]
+    assert article.service_match_codes == ["AG"]
+
+
+def test_service_folds_into_article_via_shopware_former_parent_override():
+    """Plenty bundle_ids differ, but a shared Shopware former_parent_id groups
+    the service with its article — this is the assignment DHL relies on."""
+    article = _article(item_id=100, bundle_id="P-A", former_parent_id="SW-U")
+    service = _service(SERVICE_AG, bundle_id="P-B", former_parent_id="SW-U")
     resolve_order(_order([article, service]))
 
     assert article.service_ids == [SERVICE_AG]

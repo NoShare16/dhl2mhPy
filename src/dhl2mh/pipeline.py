@@ -22,6 +22,10 @@ from dhl2mh.mapping import STOCK_LIMITATION_ARTICLE
 from dhl2mh.models import PackageData, PlentyOrder, SkippedOrder
 from dhl2mh.notifications import send_skipped_orders_report
 from dhl2mh.service_resolver import resolve_orders
+from dhl2mh.shopware_mapping import (
+    assign_former_parent_ids,
+    require_service_former_parent_ids,
+)
 from dhl2mh.xml_builder import OrderXmlBuilder
 
 log = structlog.get_logger()
@@ -56,8 +60,22 @@ async def run_pipeline(
         # 2. Map to domain
         orders = [map_order(api, countries) for api in api_orders]
 
-        # 3. Filter
-        filtered = filter_orders(orders)
+        # 3. Shopware former-parent ids (parallel). Runs before the filter so the
+        # bundle grouping (keyed on former_parent_id) is final when the filter
+        # validates the bundle structure and the resolver folds services into
+        # their article — both must see the same grouping.
+        await _enrich_former_parent_ids(orders, shopware, concurrency=category_concurrency)
+
+        # 4. Skip orders whose service positions still lack a former_parent_id.
+        fp = require_service_former_parent_ids(orders)
+        log.info(
+            "pipeline.former_parent",
+            passed=len(fp.passed),
+            skipped=len(fp.skipped),
+        )
+
+        # 5. Filter (bundle structure, package number, article weight, …)
+        filtered = filter_orders(fp.passed)
         log.info(
             "pipeline.filtered",
             passed=len(filtered.passed),
@@ -65,19 +83,19 @@ async def run_pipeline(
         )
 
         if not filtered.passed:
-            _maybe_send_report(filtered.skipped, settings)
+            _maybe_send_report(fp.skipped + filtered.skipped, settings)
             return PipelineSummary(
                 fetched=len(api_orders),
                 uploaded=0,
                 labels_received=0,
                 tracking_pushed=0,
-                skipped=len(filtered.skipped),
+                skipped=len(fp.skipped) + len(filtered.skipped),
             )
 
-        # 4. Shopware categories (parallel)
+        # 6. Shopware categories (parallel)
         await _enrich_categories(filtered.passed, shopware, concurrency=category_concurrency)
 
-        # 5. Resolve services (MatchCodes, SWG auto-add, VPR auto-add)
+        # 7. Resolve services (MatchCodes, SWG auto-add, VPR auto-add)
         resolved = resolve_orders(filtered.passed)
         log.info(
             "pipeline.resolved",
@@ -85,7 +103,7 @@ async def run_pipeline(
             skipped=len(resolved.skipped),
         )
 
-        # 6. Build XML + upload
+        # 8. Build XML + upload
         builder = OrderXmlBuilder(
             sending_party_id=settings.dhl_username,
             sender_partner_id="3" if settings.is_production else "1",
@@ -97,7 +115,7 @@ async def run_pipeline(
             uploaded += 1
         log.info("pipeline.uploaded", count=uploaded)
 
-        # 7. Wait for DHL processing, then pull labels
+        # 9. Wait for DHL processing, then pull labels
         wait_s = settings.dhl.label_wait_seconds
         if wait_s > 0 and uploaded > 0:
             log.info("pipeline.waiting_for_labels", seconds=wait_s)
@@ -106,7 +124,7 @@ async def run_pipeline(
         labels = await dhl.get_labels()
         log.info("pipeline.labels_received", count=len(labels))
 
-        # 8. Push OrderIdent back to Plenty
+        # 10. Push OrderIdent back to Plenty
         tracking_pushed = 0
         for label in labels:
             try:
@@ -123,15 +141,15 @@ async def run_pipeline(
                     error=str(e),
                 )
 
-        # 9. Mail report
-        _maybe_send_report(filtered.skipped + resolved.skipped, settings)
+        # 11. Mail report
+        _maybe_send_report(filtered.skipped + fp.skipped + resolved.skipped, settings)
 
         return PipelineSummary(
             fetched=len(api_orders),
             uploaded=uploaded,
             labels_received=len(labels),
             tracking_pushed=tracking_pushed,
-            skipped=len(filtered.skipped) + len(resolved.skipped),
+            skipped=len(filtered.skipped) + len(fp.skipped) + len(resolved.skipped),
         )
 
 
@@ -158,6 +176,42 @@ async def _enrich_categories(
         for item in o.order_items:
             if item.stock_limitation in STOCK_LIMITATION_ARTICLE:
                 item.categories = cats.get(str(item.id), [])
+
+
+async def _enrich_former_parent_ids(
+    orders: list[PlentyOrder],
+    shopware: ShopwareClient,
+    *,
+    concurrency: int,
+) -> None:
+    """Overwrite former_parent_id from Shopware where a value exists.
+
+    Only orders carrying a shopware_id (the Shopware orderNumber) are queried;
+    manually created orders without one keep their Plenty-seeded value. The
+    Shopware value wins when present, but an empty value never clears a filled
+    field (handled in ``assign_former_parent_ids``).
+    """
+    targets = [o for o in orders if o.shopware_id]
+    if not targets:
+        return
+    log.info("pipeline.enriching_former_parent", orders=len(targets))
+    sem = asyncio.Semaphore(concurrency)
+
+    async def enrich_one(order: PlentyOrder) -> None:
+        async with sem:
+            sw_order = await shopware.get_order(order.shopware_id)  # type: ignore[arg-type]
+        if sw_order is None:
+            log.warning("pipeline.shopware_order_not_found", shopware_id=order.shopware_id)
+            return
+        matched = assign_former_parent_ids(order, sw_order)
+        log.info(
+            "pipeline.former_parent_matched",
+            order_id=order.id,
+            shopware_id=order.shopware_id,
+            matched=matched,
+        )
+
+    await asyncio.gather(*(enrich_one(o) for o in targets))
 
 
 def _maybe_send_report(skipped: list[SkippedOrder], settings: Settings) -> None:
