@@ -146,6 +146,44 @@ async def test_get_labels_hits_transmissionstatus_endpoint(settings):
     )
 
 
+_DUP_ORDER_LABEL_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<dsi:Transmission xmlns:dsi="http://www.it4logistics.de/i4ldata/ext">
+  <Messages><MessageContent>
+    <ns6:Status xmlns:ns6="http://www.it4logistics.de/i4ldata/ext"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:type="ns6:OrderDocument">
+      <OrderId><System>HDE</System><Id>237601</Id></OrderId>
+      <OrderIdent>680214548424</OrderIdent>
+      <Document xsi:type="ns6:Label"><Barcode>680214548424</Barcode></Document>
+    </ns6:Status>
+  </MessageContent></Messages>
+  <Messages><MessageContent>
+    <ns6:Status xmlns:ns6="http://www.it4logistics.de/i4ldata/ext"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:type="ns6:OrderDocument">
+      <OrderId><System>HDE</System><Id>237601</Id></OrderId>
+      <OrderIdent>680214548424</OrderIdent>
+      <Document xsi:type="ns6:Label"><Barcode>680214548424</Barcode></Document>
+    </ns6:Status>
+  </MessageContent></Messages>
+</dsi:Transmission>
+"""
+
+
+async def test_get_labels_dedupes_repeated_order(settings):
+    """No multi-package shipments: one ident per order even if the status repeats."""
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        router.get(f"/transmissionStatus/{settings.dhl_username}").respond(
+            200, content=_DUP_ORDER_LABEL_XML
+        )
+        async with DhlClient(settings) as client:
+            labels = await client.get_labels()
+
+    assert len(labels) == 1
+    assert labels[0].order_id == 237601
+    assert labels[0].order_ident == "680214548424"
+
+
 async def test_get_labels_failure_raises(settings):
     with respx.mock(base_url=settings.dhl_base_url) as router:
         router.get(f"/transmissionStatus/{settings.dhl_username}").respond(503)

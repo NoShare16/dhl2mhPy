@@ -113,7 +113,16 @@ def _address_option(address: ApiAddress, type_id: int) -> str | None:
 
 
 def _first_package_number(api: ApiOrder) -> str | None:
-    return api.shipping_packages[0].package_number if api.shipping_packages else None
+    """First non-empty package number across all shipping packages.
+
+    Plenty keeps the original package at index 0 with an empty packageNumber and
+    stores the assigned tracking number on a *later* package entry — so index 0
+    alone misses already-shipped orders and the filter would re-process them.
+    """
+    for pkg in api.shipping_packages:
+        if pkg.package_number:
+            return pkg.package_number
+    return None
 
 
 def _get_order_property(api: ApiOrder, type_id: int) -> str | None:
