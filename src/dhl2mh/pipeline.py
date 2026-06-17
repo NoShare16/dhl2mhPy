@@ -45,8 +45,11 @@ async def run_pipeline(
     *,
     items_per_page: int = 50,
     category_concurrency: int = 5,
+    dry_run: bool = False,
 ) -> PipelineSummary:
     settings = settings or get_settings()
+    if dry_run:
+        log.info("pipeline.dry_run_enabled")
 
     async with (
         PlentyClient(settings) as plenty,
@@ -84,7 +87,7 @@ async def run_pipeline(
         )
 
         if not filtered.passed:
-            _maybe_send_report(fp.skipped + filtered.skipped, settings)
+            _maybe_send_report(fp.skipped + filtered.skipped, settings, dry_run=dry_run)
             return PipelineSummary(
                 fetched=len(api_orders),
                 uploaded=0,
@@ -125,9 +128,16 @@ async def run_pipeline(
         labels = await dhl.get_labels()
         log.info("pipeline.labels_received", count=len(labels))
 
-        # 10. Push OrderIdent back to Plenty
+        # 10. Push OrderIdent back to Plenty (skipped in dry-run)
         tracking_pushed = 0
         for label in labels:
+            if dry_run:
+                log.info(
+                    "pipeline.dry_run_skip_tracking_push",
+                    order_id=label.order_id,
+                    order_ident=label.order_ident,
+                )
+                continue
             try:
                 await plenty.update_package(
                     label.order_id,
@@ -142,8 +152,10 @@ async def run_pipeline(
                     error=str(e),
                 )
 
-        # 11. Mail report
-        _maybe_send_report(filtered.skipped + fp.skipped + resolved.skipped, settings)
+        # 11. Mail report (skipped in dry-run)
+        _maybe_send_report(
+            filtered.skipped + fp.skipped + resolved.skipped, settings, dry_run=dry_run
+        )
 
         return PipelineSummary(
             fetched=len(api_orders),
@@ -217,8 +229,13 @@ async def _enrich_from_shopware_order(
     await asyncio.gather(*(enrich_one(o) for o in targets))
 
 
-def _maybe_send_report(skipped: list[SkippedOrder], settings: Settings) -> None:
+def _maybe_send_report(
+    skipped: list[SkippedOrder], settings: Settings, *, dry_run: bool = False
+) -> None:
     if not skipped:
+        return
+    if dry_run:
+        log.info("pipeline.dry_run_skip_report", would_report=len(skipped))
         return
     try:
         send_skipped_orders_report(skipped, settings)

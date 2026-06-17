@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from dhl2mh.mapping import SERVICE_AG
 from dhl2mh.models import (
     OrderItem,
     PlentyOrder,
@@ -178,7 +179,7 @@ def test_water_connection_from_extended_fixture_is_false_for_nein():
 def test_skips_order_when_service_lacks_former_parent_id():
     order = _order(
         OrderItem(id=1, stock_limitation=0, former_parent_id="x"),  # article
-        OrderItem(id=2, stock_limitation=2, former_parent_id=None),  # service, missing
+        OrderItem(id=SERVICE_AG, stock_limitation=2, former_parent_id=None),  # service
     )
     result = require_service_former_parent_ids([order])
 
@@ -190,7 +191,7 @@ def test_skips_order_when_service_lacks_former_parent_id():
 def test_passes_order_when_all_services_have_former_parent_id():
     order = _order(
         OrderItem(id=1, stock_limitation=0, former_parent_id="x"),
-        OrderItem(id=2, stock_limitation=2, former_parent_id="x"),
+        OrderItem(id=SERVICE_AG, stock_limitation=2, former_parent_id="x"),
     )
     result = require_service_former_parent_ids([order])
 
@@ -201,6 +202,18 @@ def test_passes_order_when_all_services_have_former_parent_id():
 def test_article_only_order_without_former_parent_is_not_skipped():
     """No services → the field isn't required."""
     order = _order(OrderItem(id=1, stock_limitation=0, former_parent_id=None))
+    result = require_service_former_parent_ids([order])
+
+    assert result.passed == [order]
+    assert result.skipped == []
+
+
+def test_discount_position_without_former_parent_does_not_skip():
+    """A StockLimitation-2 discount (non-whitelisted id) is not a service."""
+    order = _order(
+        OrderItem(id=1, stock_limitation=0, former_parent_id="x"),
+        OrderItem(id=787119, stock_limitation=2, former_parent_id=None),  # "Rabatt"
+    )
     result = require_service_former_parent_ids([order])
 
     assert result.passed == [order]

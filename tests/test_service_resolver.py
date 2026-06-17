@@ -255,27 +255,26 @@ def test_volume_cbm_zero_when_a_dimension_missing():
     assert article.volume_cbm == Decimal(0)
 
 
-# ── error handling at the multi-order level ───────────────────────────────
+# ── non-service StockLimitation-2 positions (discounts) are ignored ────────
 
 
-def test_resolve_orders_skips_orders_with_unknown_service_id():
-    good = _order([_article(item_id=1)])
-    bad = _order([_article(item_id=2, bundle_id="X"), _service(999999, bundle_id="X")])
-    bad.id = 99
-    bad.addresses = []
+def test_resolve_orders_ignores_non_whitelisted_stock2_positions():
+    """A discount (stock 2, non-whitelisted id) is not a service: order passes."""
+    order = _order(
+        [_article(item_id=2, bundle_id="X"), _service(999999, bundle_id="X")]
+    )
 
-    result = resolve_orders([good, bad])
+    result = resolve_orders([order])
 
-    assert result.passed == [good]
-    assert len(result.skipped) == 1
-    assert result.skipped[0].order_id == 99
-    assert "999999" in result.skipped[0].reason
+    assert result.passed == [order]
+    assert result.skipped == []
 
 
-def test_resolve_order_raises_on_unknown_service():
-    from dhl2mh.mapping import UnknownServiceIdError
-
+def test_resolve_order_treats_non_whitelisted_stock2_as_no_service():
     article = _article(bundle_id="X")
-    bogus = _service(999999, bundle_id="X")
-    with pytest.raises(UnknownServiceIdError):
-        resolve_order(_order([article, bogus]))
+    discount = _service(999999, bundle_id="X")  # stock 2 but not a real service
+    resolve_order(_order([article, discount]))
+
+    # The discount contributes nothing — article has no service match codes.
+    assert article.service_ids == []
+    assert article.service_match_codes == []
