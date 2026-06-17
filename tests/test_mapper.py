@@ -96,10 +96,10 @@ def test_real_order_shopware_id_from_order_property_7(real_order):
     assert o.shopware_id == "ML19516"
 
 
-def test_real_order_package_number_taken_from_first_shipping_package(real_order):
+def test_real_order_package_number_none_when_only_empty_package(real_order):
     o = map_order(real_order, COUNTRIES)
-    # Fixture has one shipping package with packageNumber="" — empty string, not None
-    assert o.package_number == ""
+    # Fixture's single shipping package has packageNumber="" → treated as "no number"
+    assert o.package_number is None
 
 
 # ── edge cases ──────────────────────────────────────────────────────────────
@@ -143,6 +143,21 @@ def test_missing_shipping_packages_yields_none():
     api = ApiOrder.model_validate(_minimal_order())
     o = map_order(api, COUNTRIES)
     assert o.package_number is None
+
+
+def test_package_number_taken_from_later_non_empty_package():
+    """Plenty's original package [0] is empty; the tracking number sits on a
+    later package — the mapper must find it so the filter skips shipped orders."""
+    api = ApiOrder.model_validate(
+        _minimal_order(
+            shippingPackages=[
+                {"packageNumber": ""},
+                {"packageNumber": "680214534025"},
+            ]
+        )
+    )
+    o = map_order(api, COUNTRIES)
+    assert o.package_number == "680214534025"
 
 
 def test_missing_shopware_property_yields_none():

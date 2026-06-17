@@ -88,9 +88,18 @@ class DhlClient:
             raise RuntimeError(
                 f"DHL transmissionStatus failed: HTTP {resp.status_code} — {resp.text[:300]}"
             )
-        labels = self._parse_label_xml(resp.content)
+        labels = self._dedupe_by_order(self._parse_label_xml(resp.content))
         log.info("dhl.labels_pulled", count=len(labels))
         return labels
+
+    @staticmethod
+    def _dedupe_by_order(labels: list[LabelInfo]) -> list[LabelInfo]:
+        """One tracking ident per order — there are no multi-package shipments,
+        and the status response can repeat a Status block for the same order."""
+        by_order: dict[int, LabelInfo] = {}
+        for label in labels:
+            by_order.setdefault(label.order_id, label)
+        return list(by_order.values())
 
     @staticmethod
     def _parse_label_xml(xml_bytes: bytes) -> list[LabelInfo]:
