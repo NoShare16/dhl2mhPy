@@ -5,6 +5,7 @@ from pathlib import Path
 
 from dhl2mh.filter import filter_orders
 from dhl2mh.mapper import map_order
+from dhl2mh.mapping import SERVICE_AG, SERVICE_EAN
 from dhl2mh.models import Address, OrderItem, PlentyOrder
 
 FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
@@ -59,8 +60,8 @@ def test_clean_order_with_single_article_passes():
 def test_bundle_with_article_and_services_passes():
     items = [
         _article(1, bundle_id="X"),
-        _service(2, bundle_id="X"),
-        _service(3, bundle_id="X"),
+        _service(SERVICE_AG, bundle_id="X"),
+        _service(SERVICE_EAN, bundle_id="X"),
     ]
     order = _order(items=items)
     result = filter_orders([order])
@@ -110,7 +111,7 @@ def test_skip_when_type_id_not_1():
 
 
 def test_skip_when_bundle_has_service_but_no_article():
-    items = [_service(1, bundle_id="X"), _service(2, bundle_id="X")]
+    items = [_service(SERVICE_AG, bundle_id="X"), _service(SERVICE_EAN, bundle_id="X")]
     order = _order(items=items)
     result = filter_orders([order])
     assert len(result.skipped) == 1
@@ -121,7 +122,7 @@ def test_skip_when_bundle_has_more_than_one_article():
     items = [
         _article(1, bundle_id="X"),
         _article(2, bundle_id="X"),
-        _service(3, bundle_id="X"),
+        _service(SERVICE_AG, bundle_id="X"),
     ]
     order = _order(items=items)
     result = filter_orders([order])
@@ -158,7 +159,7 @@ def test_skip_when_article_weight_is_zero():
 
 def test_services_without_weight_dont_trigger_skip():
     """Only articles need a weight. Services may have weight_g=None."""
-    items = [_article(1, weight_g=2000, bundle_id="X"), _service(2, bundle_id="X")]
+    items = [_article(1, weight_g=2000, bundle_id="X"), _service(SERVICE_AG, bundle_id="X")]
     order = _order(items=items)
     result = filter_orders([order])
     assert result.passed == [order]

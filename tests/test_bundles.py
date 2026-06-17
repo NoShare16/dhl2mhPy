@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from dhl2mh.bundles import group_by_bundle, split_articles_and_services
+from dhl2mh.mapping import SERVICE_AG
 from dhl2mh.models import OrderItem
 
 
@@ -69,9 +70,10 @@ def test_different_bundle_id_same_former_parent_id_groups_together():
 def test_split_articles_and_services_by_stock_limitation():
     art1 = _item(1, stock=0)
     art2 = _item(2, stock=1)
-    svc = _item(3, stock=2)
+    svc = _item(SERVICE_AG, stock=2)  # whitelisted service id
+    discount = _item(3, stock=2)  # stock 2 but NOT whitelisted → ignored
     other = _item(4, stock=5)  # neither article nor service — ignored
 
-    articles, services = split_articles_and_services([art1, art2, svc, other])
+    articles, services = split_articles_and_services([art1, art2, svc, discount, other])
     assert articles == [art1, art2]
     assert services == [svc]

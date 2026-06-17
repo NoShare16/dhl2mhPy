@@ -15,6 +15,15 @@ app = typer.Typer(
 )
 
 
+@app.callback()
+def _main() -> None:
+    """Keep Typer in multi-command mode so ``run`` stays a named subcommand.
+
+    Without a callback, a single-command Typer app collapses the command and
+    rejects the ``run`` argument (the README documents ``dhl2mh run``).
+    """
+
+
 @app.command()
 def run(
     items_per_page: Annotated[
@@ -26,12 +35,26 @@ def run(
     log_level: Annotated[
         str, typer.Option(help="DEBUG / INFO / WARNING / ERROR.")
     ] = "INFO",
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Run fully (incl. DHL UAT upload + label pull) but do NOT write "
+            "tracking back to Plenty and do NOT send the report mail.",
+        ),
+    ] = False,
 ) -> None:
     """Run the full DHL workflow once. Designed for cron."""
     setup_logging(level=log_level)
     summary = asyncio.run(
-        run_pipeline(items_per_page=items_per_page, category_concurrency=concurrency)
+        run_pipeline(
+            items_per_page=items_per_page,
+            category_concurrency=concurrency,
+            dry_run=dry_run,
+        )
     )
+    if dry_run:
+        typer.echo("DRY RUN — no Plenty tracking write-back, no report mail sent.")
     typer.echo(
         f"fetched={summary.fetched} "
         f"uploaded={summary.uploaded} "

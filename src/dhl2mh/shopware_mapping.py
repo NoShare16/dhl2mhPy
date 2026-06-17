@@ -9,7 +9,8 @@ productNumber).
 
 from typing import NamedTuple
 
-from dhl2mh.mapping import STOCK_LIMITATION_SERVICE, WATER_CONNECTION_GROUP_ID
+from dhl2mh.bundles import is_service
+from dhl2mh.mapping import WATER_CONNECTION_GROUP_ID
 from dhl2mh.models import OrderItem, PlentyOrder, SkippedOrder, SwOrder, SwProduct
 
 
@@ -71,10 +72,11 @@ class FormerParentResult(NamedTuple):
 def require_service_former_parent_ids(orders: list[PlentyOrder]) -> FormerParentResult:
     """Split orders on the former_parent_id requirement.
 
-    former_parent_id is mandatory on every service position (StockLimitation==2).
-    If an order has services and at least one of them still lacks the id (neither
-    Plenty property 1021 nor Shopware provided one), the whole order is skipped.
-    Orders without services are unaffected.
+    former_parent_id is mandatory on every real service position (whitelisted
+    service, see ``is_service``). If an order has such services and at least one
+    still lacks the id (neither Plenty property 1021 nor Shopware provided one),
+    the whole order is skipped. Orders without services — or with only discount
+    positions — are unaffected.
     """
     passed: list[PlentyOrder] = []
     skipped: list[SkippedOrder] = []
@@ -93,7 +95,7 @@ def require_service_former_parent_ids(orders: list[PlentyOrder]) -> FormerParent
 
 def _service_without_former_parent(order: PlentyOrder) -> OrderItem | None:
     for item in order.order_items:
-        if item.stock_limitation == STOCK_LIMITATION_SERVICE and not item.former_parent_id:
+        if is_service(item) and not item.former_parent_id:
             return item
     return None
 
