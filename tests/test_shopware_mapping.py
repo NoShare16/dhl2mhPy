@@ -8,13 +8,18 @@ from dhl2mh.models import (
     SwLineItemPayload,
     SwOrder,
     SwOrderLineItem,
+    SwProduct,
+    SwPropertyOption,
 )
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
+    assign_water_connection,
     require_service_former_parent_ids,
 )
 
 SW_ORDER_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_mit_accept.json"
+SW_ORDER_EXTENDED_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_erweitert.json"
+WATER_GROUP_ID = "8910dbddf00a4d94998289840033982d"
 
 FORMER_PARENT = "019ed4680e07739a8bda655a837f5cc2"
 
@@ -107,6 +112,64 @@ def test_empty_shopware_value_does_not_clear_plenty_seed():
     order = _order(OrderItem(id=771883, former_parent_id="plenty-1234"))
     assign_former_parent_ids(order, _sw_with("771883", ""))
     assert order.order_items[0].former_parent_id == "plenty-1234"
+
+
+# ── water connection (Festwasser) extraction ────────────────────────────────
+
+
+def _sw_product_order(product_number: str, properties: list[SwPropertyOption]) -> SwOrder:
+    return SwOrder(
+        order_number="X",
+        line_items=[
+            SwOrderLineItem(
+                type="product",
+                product=SwProduct(product_number=product_number, properties=properties),
+            )
+        ],
+    )
+
+
+def test_water_connection_yes_sets_festwasser_true():
+    order = _order(OrderItem(id=771883))
+    sw = _sw_product_order(
+        "771883", [SwPropertyOption(name="ja", group_id=WATER_GROUP_ID)]
+    )
+    matched = assign_water_connection(order, sw)
+
+    assert matched == 1
+    assert order.order_items[0].festwasser is True
+
+
+def test_water_connection_no_sets_festwasser_false():
+    order = _order(OrderItem(id=771883, festwasser=True))  # ensure it gets reset
+    sw = _sw_product_order(
+        "771883", [SwPropertyOption(name="nein", group_id=WATER_GROUP_ID)]
+    )
+    assign_water_connection(order, sw)
+
+    assert order.order_items[0].festwasser is False
+
+
+def test_missing_water_property_leaves_festwasser_untouched():
+    order = _order(OrderItem(id=771883))
+    sw = _sw_product_order(
+        "771883", [SwPropertyOption(name="Weiß", group_id="some-other-group")]
+    )
+    matched = assign_water_connection(order, sw)
+
+    assert matched == 0
+    assert order.order_items[0].festwasser is False
+
+
+def test_water_connection_from_extended_fixture_is_false_for_nein():
+    """Real extended fixture: the Smeg Herd has Wasseranschluss = 'nein'."""
+    sw = SwOrder.model_validate(
+        json.loads(SW_ORDER_EXTENDED_FIXTURE.read_text())["data"][0]
+    )
+    order = _order(OrderItem(id=771883))
+    assign_water_connection(order, sw)
+
+    assert order.order_items[0].festwasser is False
 
 
 # ── skip stage: former_parent_id mandatory on service positions ─────────────

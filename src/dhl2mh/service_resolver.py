@@ -69,7 +69,9 @@ def _resolve_article(article: OrderItem, services: list[OrderItem]) -> None:
 
     match_codes: list[str] = []
     for sid in service_ids:
-        match_codes.extend(map_to_match_codes(sid, article.categories))
+        match_codes.extend(
+            map_to_match_codes(sid, article.categories, festwasser=article.festwasser)
+        )
 
     if VPR_MATCH_CODE not in match_codes and any(
         code in VPR_TRIGGER_MATCH_CODES for code in match_codes

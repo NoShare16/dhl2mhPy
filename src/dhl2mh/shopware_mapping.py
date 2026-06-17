@@ -9,8 +9,8 @@ productNumber).
 
 from typing import NamedTuple
 
-from dhl2mh.mapping import STOCK_LIMITATION_SERVICE
-from dhl2mh.models import OrderItem, PlentyOrder, SkippedOrder, SwOrder
+from dhl2mh.mapping import STOCK_LIMITATION_SERVICE, WATER_CONNECTION_GROUP_ID
+from dhl2mh.models import OrderItem, PlentyOrder, SkippedOrder, SwOrder, SwProduct
 
 
 def assign_former_parent_ids(order: PlentyOrder, sw_order: SwOrder) -> int:
@@ -32,6 +32,35 @@ def assign_former_parent_ids(order: PlentyOrder, sw_order: SwOrder) -> int:
             item.former_parent_id = former_parent_id
             matched += 1
     return matched
+
+
+def assign_water_connection(order: PlentyOrder, sw_order: SwOrder) -> int:
+    """Set ``festwasser`` on each article from its Shopware product property.
+
+    Reads the "Wasseranschluss" property group (value "ja"/"nein") off the
+    product line items and applies it to the matching Plenty position by
+    productNumber. Returns the number of positions updated.
+    """
+    flags = {
+        li.product.product_number: _water_connection_flag(li.product)
+        for li in sw_order.line_items
+        if li.product is not None and li.product.product_number
+    }
+    matched = 0
+    for item in order.order_items:
+        flag = flags.get(str(item.id))
+        if flag is not None:
+            item.festwasser = flag
+            matched += 1
+    return matched
+
+
+def _water_connection_flag(product: SwProduct) -> bool | None:
+    """True/False from the Wasseranschluss property, or None if absent."""
+    for prop in product.properties:
+        if prop.group_id == WATER_CONNECTION_GROUP_ID:
+            return (prop.name or "").strip().lower() == "ja"
+    return None
 
 
 class FormerParentResult(NamedTuple):

@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -114,6 +114,24 @@ class SwLineItemPayload(_ApiModel):
     dvsn_product_option_former_parent_id: str | None = None
 
 
+class SwPropertyOption(_ApiModel):
+    """A product property value, e.g. group "Wasseranschluss" → name "ja"/"nein"."""
+
+    name: str | None = None
+    group_id: str | None = None
+
+
+class SwProduct(_ApiModel):
+    product_number: str | None = None
+    properties: list[SwPropertyOption] = Field(default_factory=list)
+
+    @field_validator("properties", mode="before")
+    @classmethod
+    def _null_to_empty(cls, v: object) -> object:
+        # Shopware sends properties: null when the association isn't requested.
+        return v or []
+
+
 class SwOrderLineItem(_ApiModel):
     type: str | None = None
     label: str | None = None
@@ -122,6 +140,8 @@ class SwOrderLineItem(_ApiModel):
     referenced_id: str | None = None
     product_id: str | None = None
     payload: SwLineItemPayload = Field(default_factory=SwLineItemPayload)
+    # Present only for type "product"; carries the product properties.
+    product: SwProduct | None = None
 
 
 class SwOrder(_ApiModel):
@@ -172,6 +192,10 @@ class OrderItem(BaseModel):
     # Shopware dvsnProductOptionFormerParentId where one exists (matched via
     # productNumber == str(id) during the Shopware order enrichment).
     former_parent_id: str | None = None
+
+    # Article needs a fixed water connection (Shopware property group
+    # "Wasseranschluss" == "ja"). Flips SERVICE_INSTALL towards AWS.
+    festwasser: bool = False
 
     @model_validator(mode="after")
     def _seed_former_parent_id(self) -> "OrderItem":

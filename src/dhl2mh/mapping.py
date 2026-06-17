@@ -3,9 +3,9 @@
 A Plenty service item (StockLimitation==2) maps to one *or more* DHL MatchCodes.
 Two mappings depend on context:
 
-* SERVICE_INSTALL (783139) → "IS" by default, "E-AN" when the article is a "Herd"
-  (Shopware category). Festwasser-Anschluss exception (→ "AWS") will be added
-  later via item attributes.
+* SERVICE_INSTALL (783139) → "AWS" when the article needs a fixed water
+  connection (Festwasser, takes precedence), else "E-AN" when the article is a
+  "Herd" (Shopware category), else "IS".
 * SERVICE_SWG (heavy-lift) and SERVICE_VPR are auto-attached by the filter
   based on weight / other MatchCodes already on the article.
 """
@@ -24,7 +24,7 @@ SERVICE_EAN: Final = 783140         # → E-AN
 SERVICE_SVG: Final = 783146         # → SVG
 SERVICE_LA: Final = 783145          # → LA
 SERVICE_DI: Final = 783151          # → DI
-SERVICE_INSTALL: Final = 783139     # → IS  (default) / E-AN (Herde) / AWS (Festwasser, TODO)
+SERVICE_INSTALL: Final = 783139     # → AWS (Festwasser) / E-AN (Herde) / IS (default)
 SERVICE_SWG: Final = 783152         # → SWG (auto-attached when weight > 120 kg)
 SERVICE_VPR: Final = 783138         # → VPR (auto-attached when triggering codes present)
 
@@ -66,6 +66,11 @@ HERDE_CATEGORY_IDS: Final[frozenset[str]] = frozenset(
     }
 )
 
+# ── Shopware property group "Wasseranschluss" — option value "ja" means the
+# article needs a fixed water connection (Festwasser) → SERVICE_INSTALL emits AWS.
+WATER_CONNECTION_GROUP_ID: Final = "8910dbddf00a4d94998289840033982d"
+WATER_CONNECTION_MATCH_CODE: Final = "AWS"
+
 # Plenty StockLimitation classification
 STOCK_LIMITATION_ARTICLE: Final = (0, 1)
 STOCK_LIMITATION_SERVICE: Final = 2
@@ -94,16 +99,21 @@ _STATIC_MATCH_CODES: Final[dict[int, tuple[str, ...]]] = {
 def map_to_match_codes(
     service_id: int,
     category_ids: list[str] | frozenset[str],
+    *,
+    festwasser: bool = False,
 ) -> list[str]:
     """One service ID → one or more DHL MatchCodes (preserves order).
 
     Two IDs (783117 AWS+DPW, 783141 KF+E-AN) emit two codes from a single Plenty
     service item — they become two <Services> blocks in the DHL XML.
 
-    SERVICE_INSTALL (783139) is category-dependent: "E-AN" for Herde, else "IS".
-    Festwasser→AWS exception will be added later via item attributes.
+    SERVICE_INSTALL (783139) is context-dependent: "AWS" when the article needs a
+    fixed water connection (Festwasser, takes precedence), else "E-AN" for Herde,
+    else "IS".
     """
     if service_id == SERVICE_INSTALL:
+        if festwasser:
+            return [WATER_CONNECTION_MATCH_CODE]
         if any(cid in HERDE_CATEGORY_IDS for cid in category_ids):
             return ["E-AN"]
         return ["IS"]
