@@ -73,6 +73,21 @@ def test_install_service_herde_takes_precedence_when_mixed():
     assert map_to_match_codes(SERVICE_INSTALL, cats) == ["E-AN"]
 
 
+def test_install_service_festwasser_flips_to_AWS():
+    assert map_to_match_codes(SERVICE_INSTALL, [], festwasser=True) == ["AWS"]
+    assert map_to_match_codes(SERVICE_INSTALL, ["x"], festwasser=True) == ["AWS"]
+
+
+def test_install_service_festwasser_takes_precedence_over_herde():
+    cats = list(HERDE_CATEGORY_IDS)
+    assert map_to_match_codes(SERVICE_INSTALL, cats, festwasser=True) == ["AWS"]
+
+
+def test_festwasser_flag_only_affects_install_service():
+    # A static service is unaffected by the festwasser flag.
+    assert map_to_match_codes(SERVICE_AG, [], festwasser=True) == ["AG"]
+
+
 def test_unknown_service_id_raises():
     with pytest.raises(UnknownServiceIdError, match="999999"):
         map_to_match_codes(999999, [])

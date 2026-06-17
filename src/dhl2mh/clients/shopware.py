@@ -145,7 +145,18 @@ class ShopwareClient:
         on = str(order_number)
         body = {
             "filter": [{"type": "equals", "field": "orderNumber", "value": on}],
-            "associations": {"lineItems": {"associations": {"product": {}}}},
+            "associations": {
+                "lineItems": {
+                    "associations": {
+                        "product": {
+                            "associations": {
+                                "properties": {"associations": {"group": {}}},
+                                "options": {"associations": {"group": {}}},
+                            }
+                        }
+                    }
+                }
+            },
         }
         resp = await self._authed_post(self.SEARCH_ORDER_PATH, json=body)
         if not resp.is_success:

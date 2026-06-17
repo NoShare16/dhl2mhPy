@@ -24,6 +24,7 @@ from dhl2mh.notifications import send_skipped_orders_report
 from dhl2mh.service_resolver import resolve_orders
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
+    assign_water_connection,
     require_service_former_parent_ids,
 )
 from dhl2mh.xml_builder import OrderXmlBuilder
@@ -60,11 +61,11 @@ async def run_pipeline(
         # 2. Map to domain
         orders = [map_order(api, countries) for api in api_orders]
 
-        # 3. Shopware former-parent ids (parallel). Runs before the filter so the
-        # bundle grouping (keyed on former_parent_id) is final when the filter
-        # validates the bundle structure and the resolver folds services into
-        # their article — both must see the same grouping.
-        await _enrich_former_parent_ids(orders, shopware, concurrency=category_concurrency)
+        # 3. Shopware order enrichment (parallel): former-parent ids + the
+        # Festwasser flag. Runs before the filter so the bundle grouping (keyed on
+        # former_parent_id) is final when the filter validates the bundle
+        # structure and the resolver folds services into their article.
+        await _enrich_from_shopware_order(orders, shopware, concurrency=category_concurrency)
 
         # 4. Skip orders whose service positions still lack a former_parent_id.
         fp = require_service_former_parent_ids(orders)
@@ -178,23 +179,23 @@ async def _enrich_categories(
                 item.categories = cats.get(str(item.id), [])
 
 
-async def _enrich_former_parent_ids(
+async def _enrich_from_shopware_order(
     orders: list[PlentyOrder],
     shopware: ShopwareClient,
     *,
     concurrency: int,
 ) -> None:
-    """Overwrite former_parent_id from Shopware where a value exists.
+    """Enrich orders from their Shopware order: former_parent_id + Festwasser.
 
     Only orders carrying a shopware_id (the Shopware orderNumber) are queried;
-    manually created orders without one keep their Plenty-seeded value. The
-    Shopware value wins when present, but an empty value never clears a filled
-    field (handled in ``assign_former_parent_ids``).
+    manually created orders without one keep their Plenty-seeded values. The
+    Shopware former_parent_id wins when present, but an empty value never clears
+    a filled field (handled in ``assign_former_parent_ids``).
     """
     targets = [o for o in orders if o.shopware_id]
     if not targets:
         return
-    log.info("pipeline.enriching_former_parent", orders=len(targets))
+    log.info("pipeline.enriching_from_shopware_order", orders=len(targets))
     sem = asyncio.Semaphore(concurrency)
 
     async def enrich_one(order: PlentyOrder) -> None:
@@ -204,11 +205,13 @@ async def _enrich_former_parent_ids(
             log.warning("pipeline.shopware_order_not_found", shopware_id=order.shopware_id)
             return
         matched = assign_former_parent_ids(order, sw_order)
+        water = assign_water_connection(order, sw_order)
         log.info(
-            "pipeline.former_parent_matched",
+            "pipeline.shopware_order_matched",
             order_id=order.id,
             shopware_id=order.shopware_id,
-            matched=matched,
+            former_parent_matched=matched,
+            water_connection_matched=water,
         )
 
     await asyncio.gather(*(enrich_one(o) for o in targets))

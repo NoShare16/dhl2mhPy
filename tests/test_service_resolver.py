@@ -87,6 +87,16 @@ def test_service_folds_into_article_via_shopware_former_parent_override():
     assert article.service_match_codes == ["AG"]
 
 
+def test_install_service_on_festwasser_article_resolves_to_AWS():
+    """festwasser article → SERVICE_INSTALL emits AWS (which then auto-adds VPR)."""
+    article = _article(bundle_id="X")
+    article.festwasser = True
+    service = _service(SERVICE_INSTALL, bundle_id="X")
+    resolve_order(_order([article, service]))
+
+    assert article.service_match_codes == ["AWS", "VPR"]
+
+
 def test_service_emitting_two_codes_appends_both():
     article = _article(bundle_id="X")
     service = _service(SERVICE_AWS_DPW, bundle_id="X")
