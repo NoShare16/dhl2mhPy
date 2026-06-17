@@ -89,6 +89,8 @@ def _map_order_items(api: ApiOrder) -> list[OrderItem]:
                 quantity=it.quantity,
                 stock_limitation=variation.stock_limitation if variation else 0,
                 packages=it.quantity,
+                # former_parent_id seeds from bundle_id automatically (OrderItem
+                # validator); Shopware overwrites it later when a value exists.
                 bundle_id=_get_item_property(it, ITEM_PROPERTY_BUNDLE_ID),
                 weight_g=Decimal(variation.weight_g) if variation else None,
                 height_mm=variation.height_mm if variation else 0,

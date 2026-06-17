@@ -1,0 +1,1086 @@
+{
+    "total": 1,
+    "data": [
+        {
+            "extensions": {
+                "search": {
+                    "extensions": [],
+                    "translated": [],
+                    "autoIncrement": 19092,
+                    "orderNumber": "MK89643"
+                }
+            },
+            "_uniqueIdentifier": "019ed4680e08717085430ddc27c55a7f",
+            "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+            "translated": [],
+            "createdAt": "2026-06-17T07:07:29.691+00:00",
+            "updatedAt": "2026-06-17T07:17:22.024+00:00",
+            "orderNumber": "MK89643",
+            "currencyId": "b7d2554b0ce847cd82f3ac9bd1c0dfca",
+            "currencyFactor": 1,
+            "salesChannelId": "01920ef73ef872729d7fa423c29cbc97",
+            "billingAddressId": "019ed4680e08717085430ddc261582ff",
+            "billingAddressVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+            "orderDateTime": "2026-06-17T07:07:29.671+00:00",
+            "orderDate": "2026-06-17T00:00:00.000+00:00",
+            "price": {
+                "extensions": [],
+                "rawTotal": 3466.29,
+                "netPrice": 2912.85,
+                "totalPrice": 3466.29,
+                "positionPrice": 3466.29,
+                "calculatedTaxes": [
+                    {
+                        "extensions": [],
+                        "tax": 553.44,
+                        "taxRate": 19,
+                        "price": 3466.29,
+                        "label": null,
+                        "apiAlias": "cart_tax_calculated"
+                    }
+                ],
+                "taxRules": [
+                    {
+                        "extensions": [],
+                        "taxRate": 19,
+                        "percentage": 100,
+                        "apiAlias": "cart_tax_rule"
+                    }
+                ],
+                "taxStatus": "gross",
+                "apiAlias": "cart_price"
+            },
+            "amountTotal": 3466.29,
+            "amountNet": 2912.85,
+            "positionPrice": 3466.29,
+            "taxStatus": "gross",
+            "shippingCosts": {
+                "extensions": [],
+                "unitPrice": 0,
+                "totalPrice": 0,
+                "calculatedTaxes": [
+                    {
+                        "extensions": [],
+                        "tax": 0,
+                        "taxRate": 19,
+                        "price": 0,
+                        "label": null,
+                        "apiAlias": "cart_tax_calculated"
+                    }
+                ],
+                "taxRules": [
+                    {
+                        "extensions": [],
+                        "taxRate": 19,
+                        "percentage": 100,
+                        "apiAlias": "cart_tax_rule"
+                    }
+                ],
+                "quantity": 1,
+                "referencePrice": null,
+                "listPrice": null,
+                "regulationPrice": null,
+                "apiAlias": "calculated_price"
+            },
+            "shippingTotal": 0,
+            "orderCustomer": {
+                "extensions": {
+                    "foreignKeys": {
+                        "extensions": [],
+                        "apiAlias": "order_customer_foreign_keys_extension"
+                    },
+                    "internal_mapping_storage": {
+                        "extensions": [],
+                        "apiAlias": null
+                    }
+                },
+                "_uniqueIdentifier": "019ed4680e1273e5b2aa81d4c1f46f2b",
+                "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                "translated": [],
+                "createdAt": "2026-06-17T07:07:29.686+00:00",
+                "updatedAt": null,
+                "email": "neven.drmestrovic@gmail.com",
+                "orderId": "019ed4680e08717085430ddc27c55a7f",
+                "salutationId": "01920ef6105f73e6a6fc2fb4a733c8f6",
+                "firstName": "Neven",
+                "lastName": "Mestrovic",
+                "title": null,
+                "vatIds": null,
+                "company": null,
+                "customerNumber": "135217",
+                "customerId": "019ed466039873739992dc684a22fabd",
+                "customer": null,
+                "salutation": null,
+                "order": null,
+                "remoteAddress": "2003:ca:4f16:4ea9::",
+                "orderVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                "customFields": null,
+                "id": "019ed4680e1273e5b2aa81d4c1f46f2b",
+                "apiAlias": "order_customer"
+            },
+            "currency": null,
+            "languageId": "2fbb5fe2e29a4d70aa5854ce7ce3e20b",
+            "language": null,
+            "salesChannel": null,
+            "addresses": null,
+            "billingAddress": null,
+            "deliveries": null,
+            "lineItems": [
+                {
+                    "extensions": {
+                        "foreignKeys": {
+                            "extensions": [],
+                            "apiAlias": "order_line_item_foreign_keys_extension",
+                            "stateId": null
+                        }
+                    },
+                    "_uniqueIdentifier": "019ed4680e07739a8bda655a83b88b8d",
+                    "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "translated": [],
+                    "createdAt": "2026-06-17T07:07:29.689+00:00",
+                    "updatedAt": null,
+                    "orderId": "019ed4680e08717085430ddc27c55a7f",
+                    "identifier": "7ab651512c6fcb26adfa1ff089ce8fd2",
+                    "referencedId": "019290293e5871448b30d20d7ffc2a24",
+                    "productId": "019290293e5871448b30d20d7ffc2a24",
+                    "promotionId": null,
+                    "quantity": 1,
+                    "unitPrice": 3474.05,
+                    "totalPrice": 3474.05,
+                    "label": "Smeg CPF9IPWH Stand-Herd Weiß",
+                    "description": null,
+                    "good": true,
+                    "removable": false,
+                    "coverId": "019291768ff8711487db302dd4290d6a",
+                    "stackable": true,
+                    "position": 1,
+                    "price": {
+                        "extensions": [],
+                        "unitPrice": 3474.05,
+                        "totalPrice": 3474.05,
+                        "calculatedTaxes": [
+                            {
+                                "extensions": [],
+                                "tax": 554.68,
+                                "taxRate": 19,
+                                "price": 3474.05,
+                                "label": null,
+                                "apiAlias": "cart_tax_calculated"
+                            }
+                        ],
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "referencePrice": null,
+                        "listPrice": {
+                            "extensions": [],
+                            "price": 5669,
+                            "discount": -2194.95,
+                            "percentage": 38.72,
+                            "apiAlias": "cart_list_price"
+                        },
+                        "regulationPrice": null,
+                        "apiAlias": "calculated_price"
+                    },
+                    "priceDefinition": {
+                        "extensions": [],
+                        "isCalculated": true,
+                        "referencePriceDefinition": null,
+                        "listPrice": 5669,
+                        "regulationPrice": null,
+                        "price": 3474.05,
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "type": "quantity",
+                        "apiAlias": "cart_price_quantity"
+                    },
+                    "payload": {
+                        "isNew": false,
+                        "stock": 0,
+                        "taxId": "01920ef612e071b78cf0ccff7b2378ca",
+                        "tagIds": [
+                            "019266761faa7bbbbfba16703e4fafb5",
+                            "0192671eee827cb8b2b2572a1760f58e",
+                            "019a3465e73a72aaaf14bf7f68a7dd80"
+                        ],
+                        "options": [],
+                        "features": [
+                            {
+                                "type": "property",
+                                "label": "Farbe",
+                                "value": {
+                                    "58ef0240aae6409595f39ed3099f8f94": {
+                                        "id": "58ef0240aae6409595f39ed3099f8f94",
+                                        "name": "Weiß",
+                                        "mediaId": null,
+                                        "colorHexCode": "#fcfcfc"
+                                    }
+                                }
+                            },
+                            {
+                                "type": "property",
+                                "label": "Gerätebreite",
+                                "value": {
+                                    "62f5359e58284562a73dd47e82b581a6": {
+                                        "id": "62f5359e58284562a73dd47e82b581a6",
+                                        "name": "90 cm ",
+                                        "mediaId": null,
+                                        "colorHexCode": null
+                                    }
+                                }
+                            },
+                            {
+                                "type": "property",
+                                "label": "Beheizungsart",
+                                "value": {
+                                    "66dc89f8b5e24985a890e5a96662c89c": {
+                                        "id": "66dc89f8b5e24985a890e5a96662c89c",
+                                        "name": "Induktion",
+                                        "mediaId": null,
+                                        "colorHexCode": null
+                                    }
+                                }
+                            }
+                        ],
+                        "parentId": null,
+                        "createdAt": "2024-10-15 12:31:15.035",
+                        "optionIds": null,
+                        "streamIds": [
+                            "01932549634a71d49590191ba8130d0a",
+                            "019329b03ca97198a4d6102d05a11ca2",
+                            "01932a47ad897193a188f695bb930ac6",
+                            "01932eff7199739aac48c86565a4fa2c",
+                            "01932f00569c7221bfc188713c1badf4",
+                            "01932f78443c70efb75eb43602965e3d",
+                            "0195a9747a4f7295983ceef5a48b4977",
+                            "0195a9c74ae972b1b2e0a3042add459b",
+                            "01974071512870e790a2b15dfb090128",
+                            "0198f4dc97a07156bc23be650011525f",
+                            "019a2fd307e0735d99a31ee534b49685",
+                            "019a359aa548720c97116682741344cd",
+                            "019a35a2f4b17277b34d9a4a8bbf74e5",
+                            "019a35c05142728fa7f841456d59f348",
+                            "019a35c119fa734c889f819d3f89bb35",
+                            "019a4dd50b1b712087b8065109c0b4ff",
+                            "019aa068ab877dbc84a095526484578c",
+                            "019ada2615d573ee8f419147c6423f24",
+                            "019ada76bf0d7202982955016937b02d",
+                            "019c8f334a497348bd8ab30d2bdb0a6a",
+                            "019d716e22727110b135291beaafc8ea",
+                            "019de2818b91728da49a1cb32d37a0ae",
+                            "019e207ed5db75499f0bf86a090bf9e2"
+                        ],
+                        "isCloseout": false,
+                        "categoryIds": [
+                            "01920f79b22c72b5b51cbc4c1cab87d0",
+                            "01920f7a3c777754b70ca4208642c37f",
+                            "01920f7eba637642a6c29a5905bf961b"
+                        ],
+                        "productType": "physical",
+                        "propertyIds": [
+                            "01900c960fcb7d569595636dc4eddb22",
+                            "188b5a1fb04d4f4eacb5ab017a24fab5",
+                            "20fae15264e6472eaad27e6cd20e389b",
+                            "2d74557a471f4cb2a8416f4663ffa77e",
+                            "58ef0240aae6409595f39ed3099f8f94",
+                            "62f5359e58284562a73dd47e82b581a6",
+                            "66dc89f8b5e24985a890e5a96662c89c",
+                            "9d3b55948eee42ca9630c5def6f270f2",
+                            "cbf2d5676ef242a79afd5063a7773ea9",
+                            "d1b49720d88b4f84a735455228a51996",
+                            "d6906cf2fb8140c39661794ed3a07660",
+                            "e9e87e8301724f1a94f3f1947df43374"
+                        ],
+                        "releaseDate": null,
+                        "customFields": [],
+                        "productNumber": "771883",
+                        "manufacturerId": "019228d7f14a7cd394409d13a2c8461e",
+                        "purchasePrices": "{\"extensions\":[],\"currencyId\":\"b7d2554b0ce847cd82f3ac9bd1c0dfca\",\"net\":3096.51,\"gross\":3684.847,\"linked\":true,\"listPrice\":null,\"percentage\":null,\"regulationPrice\":null}",
+                        "markAsTopseller": false,
+                        "dvsnProductOption": true,
+                        "dvsnProductOptionId": null,
+                        "dvsnProductOptionOption": false,
+                        "dvsnProductOptionProduct": true,
+                        "dvsnProductOptionContainer": false,
+                        "dvsnProductOptionFormerParentId": "019ed4680e07739a8bda655a837f5cc2"
+                    },
+                    "parentId": null,
+                    "parent": null,
+                    "type": "product",
+                    "order": null,
+                    "orderDeliveryPositions": null,
+                    "cover": null,
+                    "children": null,
+                    "product": {
+                        "extensions": {
+                            "foreignKeys": {
+                                "extensions": [],
+                                "apiAlias": "product_foreign_keys_extension"
+                            },
+                            "internal_mapping_storage": {
+                                "extensions": [],
+                                "apiAlias": null
+                            }
+                        },
+                        "_uniqueIdentifier": "019290293e5871448b30d20d7ffc2a24",
+                        "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                        "translated": {
+                            "metaDescription": null,
+                            "name": "Smeg CPF9IPWH Stand-Herd Weiß",
+                            "keywords": null,
+                            "description": "<h2>Smeg CPF9IPWH Kochzentrum mit Induktion &amp; Pyrolyse in 90x60 cm Weiß</h2><p>Smeg CPF9IPWH ist ein Kochzentrum mit Induktion in Weiß aus der Serie Portofino. Der Standherd mit den Maßen 90x60 cm besitzt einen Garraum mit Umluft/Heißluft, Pyrolyse, 115 Liter Volumen und 20 Automatikprogramme sowie ein Induktionskochfeld mit fünf Kochzonen. Über 7 Bedienknebel und ein LCD- Display lassen sich alle wichtigen Funktionen einstellen.</p><h2>Portofino Kochzentrum</h2><p>Portofino ist eine bunte Design-Serie von Smeg, die Leichtigkeit und Helligkeit in die Küche bringt. Mediterrane Farben kombiniert mit Elementen aus Edelstahl vermitteln perfekt den italienischen Flair durch Dunstabzugshaube und Standherd. Ein Smeg Portofino Kochzentrum ist Made in Italy und verkörpert italienisches Design plus technische Spitzenleistung.</p>",
+                            "metaTitle": null,
+                            "packUnit": null,
+                            "packUnitPlural": null,
+                            "customFields": {
+                                "custom_features_1": "Portofino-Design",
+                                "custom_features_2": "Spritzleiste in Edelstahl",
+                                "custom_features_3": "Staufach im Sockelbereich mit PUSH-PULL-Öffnung und SMEG-Logo",
+                                "custom_features_4": "Automatische Anpassung Topfdurchmesser",
+                                "custom_features_5": "2 Pyrolyse Reinigungsfunktionen",
+                                "custom_price_margin": 152.05,
+                                "custom_eupi_datasheet": "0192918421597047b507cb8f34ea8dc6",
+                                "custom_price_minprice": 3322,
+                                "custom_service_warranty": "5_years_warranty",
+                                "custom_eupi_energy_arrow": "a+",
+                                "custom_eupi_energy_label": "0192918a8d2b72829cd871b0de0c49a1",
+                                "klaviyo_back_in_stock_disabled": false,
+                                "dvsn_product_option_product_option_1": "0194740cc5b37b6a9cc7606138545fc9",
+                                "dvsn_product_option_product_option_2": "0194740ae7737a38b513520317c06648",
+                                "dvsn_product_option_product_option_3": ""
+                            },
+                            "slotConfig": null,
+                            "customSearchKeywords": null,
+                            "ogTitle": null,
+                            "ogDescription": null
+                        },
+                        "createdAt": "2024-10-15T12:31:15.035+00:00",
+                        "updatedAt": "2026-06-17T07:07:29.000+00:00",
+                        "parentId": null,
+                        "childCount": 0,
+                        "autoIncrement": 2402,
+                        "taxId": "01920ef612e071b78cf0ccff7b2378ca",
+                        "manufacturerId": "019228d7f14a7cd394409d13a2c8461e",
+                        "unitId": null,
+                        "active": true,
+                        "displayGroup": "a070389e53d24cbb5ef20d2c5c997a5977a5a09d405829ca9ef608a1daea6213",
+                        "price": [
+                            {
+                                "extensions": [],
+                                "currencyId": "b7d2554b0ce847cd82f3ac9bd1c0dfca",
+                                "net": 2919.37,
+                                "gross": 3474.05,
+                                "linked": true,
+                                "listPrice": {
+                                    "extensions": [],
+                                    "currencyId": "b7d2554b0ce847cd82f3ac9bd1c0dfca",
+                                    "net": 4763.866,
+                                    "gross": 5669,
+                                    "linked": true,
+                                    "listPrice": null,
+                                    "percentage": null,
+                                    "regulationPrice": null,
+                                    "apiAlias": "price"
+                                },
+                                "percentage": {
+                                    "net": 38.72,
+                                    "gross": 38.72
+                                },
+                                "regulationPrice": null,
+                                "apiAlias": "price"
+                            }
+                        ],
+                        "manufacturerNumber": "CPF9IPWH",
+                        "ean": "8017709240769",
+                        "sales": 2,
+                        "productNumber": "771883",
+                        "stock": -1,
+                        "availableStock": -1,
+                        "available": true,
+                        "type": "physical",
+                        "deliveryTimeId": "01920ef612bc71269b859d93dbb3089a",
+                        "deliveryTime": null,
+                        "restockTime": 5,
+                        "isCloseout": false,
+                        "purchaseSteps": 1,
+                        "maxPurchase": null,
+                        "minPurchase": 1,
+                        "purchaseUnit": null,
+                        "referenceUnit": null,
+                        "shippingFree": false,
+                        "purchasePrices": [
+                            {
+                                "extensions": [],
+                                "currencyId": "b7d2554b0ce847cd82f3ac9bd1c0dfca",
+                                "net": 3096.51,
+                                "gross": 3684.847,
+                                "linked": true,
+                                "listPrice": null,
+                                "percentage": null,
+                                "regulationPrice": null,
+                                "apiAlias": "price"
+                            }
+                        ],
+                        "markAsTopseller": false,
+                        "weight": 160,
+                        "width": 900,
+                        "height": 964,
+                        "length": 898,
+                        "releaseDate": null,
+                        "categoryTree": [
+                            "01920f79b22c72b5b51cbc4c1cab87d0",
+                            "01920f7a3c777754b70ca4208642c37f",
+                            "01920f7eba637642a6c29a5905bf961b"
+                        ],
+                        "streamIds": [
+                            "01932549634a71d49590191ba8130d0a",
+                            "019329b03ca97198a4d6102d05a11ca2",
+                            "01932a47ad897193a188f695bb930ac6",
+                            "01932eff7199739aac48c86565a4fa2c",
+                            "01932f00569c7221bfc188713c1badf4",
+                            "01932f78443c70efb75eb43602965e3d",
+                            "0195a9747a4f7295983ceef5a48b4977",
+                            "0195a9c74ae972b1b2e0a3042add459b",
+                            "01974071512870e790a2b15dfb090128",
+                            "0198f4dc97a07156bc23be650011525f",
+                            "019a2fd307e0735d99a31ee534b49685",
+                            "019a359aa548720c97116682741344cd",
+                            "019a35a2f4b17277b34d9a4a8bbf74e5",
+                            "019a35c05142728fa7f841456d59f348",
+                            "019a35c119fa734c889f819d3f89bb35",
+                            "019a4dd50b1b712087b8065109c0b4ff",
+                            "019aa068ab877dbc84a095526484578c",
+                            "019ada2615d573ee8f419147c6423f24",
+                            "019ada76bf0d7202982955016937b02d",
+                            "019c8f334a497348bd8ab30d2bdb0a6a",
+                            "019d716e22727110b135291beaafc8ea",
+                            "019de2818b91728da49a1cb32d37a0ae",
+                            "019e207ed5db75499f0bf86a090bf9e2"
+                        ],
+                        "optionIds": null,
+                        "propertyIds": [
+                            "01900c960fcb7d569595636dc4eddb22",
+                            "188b5a1fb04d4f4eacb5ab017a24fab5",
+                            "20fae15264e6472eaad27e6cd20e389b",
+                            "2d74557a471f4cb2a8416f4663ffa77e",
+                            "58ef0240aae6409595f39ed3099f8f94",
+                            "62f5359e58284562a73dd47e82b581a6",
+                            "66dc89f8b5e24985a890e5a96662c89c",
+                            "9d3b55948eee42ca9630c5def6f270f2",
+                            "cbf2d5676ef242a79afd5063a7773ea9",
+                            "d1b49720d88b4f84a735455228a51996",
+                            "d6906cf2fb8140c39661794ed3a07660",
+                            "e9e87e8301724f1a94f3f1947df43374"
+                        ],
+                        "name": "Smeg CPF9IPWH Stand-Herd Weiß",
+                        "keywords": null,
+                        "description": "<h2>Smeg CPF9IPWH Kochzentrum mit Induktion &amp; Pyrolyse in 90x60 cm Weiß</h2><p>Smeg CPF9IPWH ist ein Kochzentrum mit Induktion in Weiß aus der Serie Portofino. Der Standherd mit den Maßen 90x60 cm besitzt einen Garraum mit Umluft/Heißluft, Pyrolyse, 115 Liter Volumen und 20 Automatikprogramme sowie ein Induktionskochfeld mit fünf Kochzonen. Über 7 Bedienknebel und ein LCD- Display lassen sich alle wichtigen Funktionen einstellen.</p><h2>Portofino Kochzentrum</h2><p>Portofino ist eine bunte Design-Serie von Smeg, die Leichtigkeit und Helligkeit in die Küche bringt. Mediterrane Farben kombiniert mit Elementen aus Edelstahl vermitteln perfekt den italienischen Flair durch Dunstabzugshaube und Standherd. Ein Smeg Portofino Kochzentrum ist Made in Italy und verkörpert italienisches Design plus technische Spitzenleistung.</p>",
+                        "metaDescription": null,
+                        "metaTitle": null,
+                        "ogTitle": null,
+                        "ogDescription": null,
+                        "packUnit": null,
+                        "packUnitPlural": null,
+                        "variantRestrictions": null,
+                        "variantListingConfig": null,
+                        "variation": [],
+                        "tax": null,
+                        "manufacturer": null,
+                        "unit": null,
+                        "prices": [],
+                        "cover": null,
+                        "parent": null,
+                        "children": null,
+                        "media": null,
+                        "cmsPageId": "7a6d253a67204037966f42b0119704d5",
+                        "cmsPage": null,
+                        "slotConfig": null,
+                        "searchKeywords": null,
+                        "translations": null,
+                        "categories": null,
+                        "customFieldSets": null,
+                        "tags": null,
+                        "properties": null,
+                        "options": null,
+                        "configuratorSettings": null,
+                        "categoriesRo": null,
+                        "coverId": "019291768ff8711487db302dd368e391",
+                        "visibilities": null,
+                        "tagIds": [
+                            "019266761faa7bbbbfba16703e4fafb5",
+                            "0192671eee827cb8b2b2572a1760f58e",
+                            "019a3465e73a72aaaf14bf7f68a7dd80"
+                        ],
+                        "categoryIds": [
+                            "01920f7eba637642a6c29a5905bf961b"
+                        ],
+                        "productReviews": null,
+                        "ratingAverage": null,
+                        "mainCategories": null,
+                        "seoUrls": null,
+                        "orderLineItems": null,
+                        "crossSellings": null,
+                        "crossSellingAssignedProducts": null,
+                        "featureSetId": "0193022149437ae9870e6f43ce95e211",
+                        "featureSet": null,
+                        "customFieldSetSelectionActive": null,
+                        "customSearchKeywords": null,
+                        "wishlists": null,
+                        "canonicalProductId": null,
+                        "canonicalProduct": null,
+                        "streams": null,
+                        "downloads": null,
+                        "openGraphMediaId": null,
+                        "openGraphMedia": null,
+                        "states": [
+                            "is-physical"
+                        ],
+                        "customFields": {
+                            "custom_features_1": "Portofino-Design",
+                            "custom_features_2": "Spritzleiste in Edelstahl",
+                            "custom_features_3": "Staufach im Sockelbereich mit PUSH-PULL-Öffnung und SMEG-Logo",
+                            "custom_features_4": "Automatische Anpassung Topfdurchmesser",
+                            "custom_features_5": "2 Pyrolyse Reinigungsfunktionen",
+                            "custom_price_margin": 152.05,
+                            "custom_eupi_datasheet": "0192918421597047b507cb8f34ea8dc6",
+                            "custom_price_minprice": 3322,
+                            "custom_service_warranty": "5_years_warranty",
+                            "custom_eupi_energy_arrow": "a+",
+                            "custom_eupi_energy_label": "0192918a8d2b72829cd871b0de0c49a1",
+                            "klaviyo_back_in_stock_disabled": false,
+                            "dvsn_product_option_product_option_1": "0194740cc5b37b6a9cc7606138545fc9",
+                            "dvsn_product_option_product_option_2": "0194740ae7737a38b513520317c06648",
+                            "dvsn_product_option_product_option_3": ""
+                        },
+                        "id": "019290293e5871448b30d20d7ffc2a24",
+                        "apiAlias": "product"
+                    },
+                    "orderTransactionCaptureRefundPositions": null,
+                    "states": [
+                        "is-physical"
+                    ],
+                    "downloads": null,
+                    "promotion": null,
+                    "orderVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "productVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "parentVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "customFields": null,
+                    "id": "019ed4680e07739a8bda655a83b88b8d",
+                    "apiAlias": "order_line_item"
+                },
+                {
+                    "extensions": {
+                        "foreignKeys": {
+                            "extensions": [],
+                            "apiAlias": "order_line_item_foreign_keys_extension",
+                            "stateId": null
+                        }
+                    },
+                    "_uniqueIdentifier": "019ed4680e07739a8bda655a845138c3",
+                    "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "translated": [],
+                    "createdAt": "2026-06-17T07:07:29.689+00:00",
+                    "updatedAt": null,
+                    "orderId": "019ed4680e08717085430ddc27c55a7f",
+                    "identifier": "8e7abb118f538d3da485c4506e83e1e7",
+                    "referencedId": "0194740cc5b37b6a9cc7606138545fc9",
+                    "productId": null,
+                    "promotionId": null,
+                    "quantity": 1,
+                    "unitPrice": 29,
+                    "totalPrice": 29,
+                    "label": "Altgerätemitnahme & -entsorgung",
+                    "description": null,
+                    "good": false,
+                    "removable": false,
+                    "coverId": null,
+                    "stackable": false,
+                    "position": 2,
+                    "price": {
+                        "extensions": [],
+                        "unitPrice": 29,
+                        "totalPrice": 29,
+                        "calculatedTaxes": [
+                            {
+                                "extensions": [],
+                                "tax": 4.63,
+                                "taxRate": 19,
+                                "price": 29,
+                                "label": null,
+                                "apiAlias": "cart_tax_calculated"
+                            }
+                        ],
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "referencePrice": null,
+                        "listPrice": null,
+                        "regulationPrice": null,
+                        "apiAlias": "calculated_price"
+                    },
+                    "priceDefinition": {
+                        "extensions": [],
+                        "isCalculated": true,
+                        "referencePriceDefinition": null,
+                        "listPrice": null,
+                        "regulationPrice": null,
+                        "price": 29,
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "type": "quantity",
+                        "apiAlias": "cart_price_quantity"
+                    },
+                    "payload": {
+                        "taxId": "01920ef612e071b78cf0ccff7b2378ca",
+                        "customFields": null,
+                        "productNumber": "783116",
+                        "dvsnProductOption": true,
+                        "dvsnProductOptionId": "0194740cc5b37b6a9cc7606138545fc9",
+                        "dvsnProductOptionOption": true,
+                        "dvsnProductOptionProduct": false,
+                        "dvsnProductOptionContainer": false,
+                        "dvsnProductOptionSurchargeType": "absolute",
+                        "dvsnProductOptionFormerParentId": "019ed4680e07739a8bda655a837f5cc2",
+                        "dvsnProductOptionSurchargeCalculation": "quantity"
+                    },
+                    "parentId": null,
+                    "parent": null,
+                    "type": "dvsn-product-option",
+                    "order": null,
+                    "orderDeliveryPositions": null,
+                    "cover": null,
+                    "children": null,
+                    "product": null,
+                    "orderTransactionCaptureRefundPositions": null,
+                    "states": [
+                        "is-physical"
+                    ],
+                    "downloads": null,
+                    "promotion": null,
+                    "orderVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "productVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "parentVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "customFields": null,
+                    "id": "019ed4680e07739a8bda655a845138c3",
+                    "apiAlias": "order_line_item"
+                },
+                {
+                    "extensions": {
+                        "foreignKeys": {
+                            "extensions": [],
+                            "apiAlias": "order_line_item_foreign_keys_extension",
+                            "stateId": null
+                        }
+                    },
+                    "_uniqueIdentifier": "019ed4680e07739a8bda655a84ea39f8",
+                    "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "translated": [],
+                    "createdAt": "2026-06-17T07:07:29.690+00:00",
+                    "updatedAt": null,
+                    "orderId": "019ed4680e08717085430ddc27c55a7f",
+                    "identifier": "26f52de2b4219c01df899edebdef0cea",
+                    "referencedId": "0194740ae7737a38b513520317c06648",
+                    "productId": null,
+                    "promotionId": null,
+                    "quantity": 1,
+                    "unitPrice": 85,
+                    "totalPrice": 85,
+                    "label": "Installationsservice (BMD)",
+                    "description": null,
+                    "good": false,
+                    "removable": false,
+                    "coverId": null,
+                    "stackable": false,
+                    "position": 3,
+                    "price": {
+                        "extensions": [],
+                        "unitPrice": 85,
+                        "totalPrice": 85,
+                        "calculatedTaxes": [
+                            {
+                                "extensions": [],
+                                "tax": 13.57,
+                                "taxRate": 19,
+                                "price": 85,
+                                "label": null,
+                                "apiAlias": "cart_tax_calculated"
+                            }
+                        ],
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "referencePrice": null,
+                        "listPrice": null,
+                        "regulationPrice": null,
+                        "apiAlias": "calculated_price"
+                    },
+                    "priceDefinition": {
+                        "extensions": [],
+                        "isCalculated": true,
+                        "referencePriceDefinition": null,
+                        "listPrice": null,
+                        "regulationPrice": null,
+                        "price": 85,
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "type": "quantity",
+                        "apiAlias": "cart_price_quantity"
+                    },
+                    "payload": {
+                        "taxId": "01920ef612e071b78cf0ccff7b2378ca",
+                        "customFields": null,
+                        "productNumber": "783140",
+                        "dvsnProductOption": true,
+                        "dvsnProductOptionId": "0194740ae7737a38b513520317c06648",
+                        "dvsnProductOptionOption": true,
+                        "dvsnProductOptionProduct": false,
+                        "dvsnProductOptionContainer": false,
+                        "dvsnProductOptionSurchargeType": "absolute",
+                        "dvsnProductOptionFormerParentId": "019ed4680e07739a8bda655a837f5cc2",
+                        "dvsnProductOptionSurchargeCalculation": "quantity"
+                    },
+                    "parentId": null,
+                    "parent": null,
+                    "type": "dvsn-product-option",
+                    "order": null,
+                    "orderDeliveryPositions": null,
+                    "cover": null,
+                    "children": null,
+                    "product": null,
+                    "orderTransactionCaptureRefundPositions": null,
+                    "states": [
+                        "is-physical"
+                    ],
+                    "downloads": null,
+                    "promotion": null,
+                    "orderVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "productVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "parentVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "customFields": null,
+                    "id": "019ed4680e07739a8bda655a84ea39f8",
+                    "apiAlias": "order_line_item"
+                },
+                {
+                    "extensions": {
+                        "foreignKeys": {
+                            "extensions": [],
+                            "apiAlias": "order_line_item_foreign_keys_extension",
+                            "stateId": null
+                        }
+                    },
+                    "_uniqueIdentifier": "019ed4680e07739a8bda655a8507dc20",
+                    "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "translated": [],
+                    "createdAt": "2026-06-17T07:07:29.690+00:00",
+                    "updatedAt": null,
+                    "orderId": "019ed4680e08717085430ddc27c55a7f",
+                    "identifier": "019de2e55d457196a6835eae46718c19",
+                    "referencedId": null,
+                    "productId": null,
+                    "promotionId": "019de2e55d3c73b9a1f8587df4080458",
+                    "quantity": 1,
+                    "unitPrice": -50,
+                    "totalPrice": -50,
+                    "label": "Deal Weeks - 50 EUR Rabatt",
+                    "description": "Deal Weeks - 50 EUR Rabatt",
+                    "good": false,
+                    "removable": true,
+                    "coverId": null,
+                    "stackable": true,
+                    "position": 4,
+                    "price": {
+                        "extensions": [],
+                        "unitPrice": -50,
+                        "totalPrice": -50,
+                        "calculatedTaxes": [
+                            {
+                                "extensions": [],
+                                "tax": -7.98,
+                                "taxRate": 19,
+                                "price": -50,
+                                "label": null,
+                                "apiAlias": "cart_tax_calculated"
+                            }
+                        ],
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "referencePrice": null,
+                        "listPrice": null,
+                        "regulationPrice": null,
+                        "apiAlias": "calculated_price"
+                    },
+                    "priceDefinition": {
+                        "extensions": [],
+                        "price": -50,
+                        "filter": null,
+                        "type": "absolute",
+                        "apiAlias": "cart_price_absolute"
+                    },
+                    "payload": {
+                        "code": "",
+                        "value": "50",
+                        "filter": {
+                            "usageKey": null,
+                            "pickerKey": null,
+                            "sorterKey": null,
+                            "applierKey": null,
+                            "considerAdvancedRules": false
+                        },
+                        "groupId": "",
+                        "maxValue": "",
+                        "priority": 100,
+                        "setGroups": [],
+                        "discountId": "019de2e55d457196a6835eae46718c19",
+                        "exclusions": [],
+                        "composition": [
+                            {
+                                "id": "70946b35525073a490cfbd6cbd2d989a",
+                                "discount": 50,
+                                "quantity": 1
+                            }
+                        ],
+                        "promotionId": "019de2e55d3c73b9a1f8587df4080458",
+                        "discountType": "absolute",
+                        "discountScope": "cart",
+                        "promotionCodeType": "global",
+                        "limitedRedemptions": false,
+                        "preventCombination": false
+                    },
+                    "parentId": null,
+                    "parent": null,
+                    "type": "promotion",
+                    "order": null,
+                    "orderDeliveryPositions": null,
+                    "cover": null,
+                    "children": null,
+                    "product": null,
+                    "orderTransactionCaptureRefundPositions": null,
+                    "states": [],
+                    "downloads": null,
+                    "promotion": null,
+                    "orderVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "productVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "parentVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "customFields": null,
+                    "id": "019ed4680e07739a8bda655a8507dc20",
+                    "apiAlias": "order_line_item"
+                },
+                {
+                    "extensions": {
+                        "foreignKeys": {
+                            "extensions": [],
+                            "apiAlias": "order_line_item_foreign_keys_extension",
+                            "stateId": null
+                        }
+                    },
+                    "_uniqueIdentifier": "019ed4680e08717085430ddc251737bd",
+                    "versionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "translated": [],
+                    "createdAt": "2026-06-17T07:07:29.691+00:00",
+                    "updatedAt": null,
+                    "orderId": "019ed4680e08717085430ddc27c55a7f",
+                    "identifier": "019743cf914a7ba49023ce2a9d4103a8",
+                    "referencedId": null,
+                    "productId": null,
+                    "promotionId": "019743cd79467ac6930722630c27ebd6",
+                    "quantity": 1,
+                    "unitPrice": -71.76,
+                    "totalPrice": -71.76,
+                    "label": "2% Rabatt bei Vorkasse per Überweisung",
+                    "description": "2% Rabatt bei Vorkasse per Überweisung",
+                    "good": false,
+                    "removable": true,
+                    "coverId": null,
+                    "stackable": false,
+                    "position": 5,
+                    "price": {
+                        "extensions": [],
+                        "unitPrice": -71.76,
+                        "totalPrice": -71.76,
+                        "calculatedTaxes": [
+                            {
+                                "extensions": [],
+                                "tax": -11.46,
+                                "taxRate": 19,
+                                "price": -71.76,
+                                "label": null,
+                                "apiAlias": "cart_tax_calculated"
+                            }
+                        ],
+                        "taxRules": [
+                            {
+                                "extensions": [],
+                                "taxRate": 19,
+                                "percentage": 100,
+                                "apiAlias": "cart_tax_rule"
+                            }
+                        ],
+                        "quantity": 1,
+                        "referencePrice": null,
+                        "listPrice": null,
+                        "regulationPrice": null,
+                        "apiAlias": "calculated_price"
+                    },
+                    "priceDefinition": {
+                        "extensions": [],
+                        "percentage": -2,
+                        "filter": null,
+                        "type": "percentage",
+                        "apiAlias": "cart_price_percentage"
+                    },
+                    "payload": {
+                        "code": "",
+                        "value": "2",
+                        "filter": {
+                            "usageKey": null,
+                            "pickerKey": null,
+                            "sorterKey": null,
+                            "applierKey": null,
+                            "considerAdvancedRules": false
+                        },
+                        "groupId": "",
+                        "maxValue": "",
+                        "priority": 1,
+                        "setGroups": [],
+                        "discountId": "019743cf914a7ba49023ce2a9d4103a8",
+                        "exclusions": [],
+                        "composition": [
+                            {
+                                "id": "70946b35525073a490cfbd6cbd2d989a",
+                                "discount": 71.76100000000001,
+                                "quantity": 1
+                            }
+                        ],
+                        "promotionId": "019743cd79467ac6930722630c27ebd6",
+                        "discountType": "percentage",
+                        "discountScope": "cart",
+                        "promotionCodeType": "global",
+                        "limitedRedemptions": false,
+                        "preventCombination": false
+                    },
+                    "parentId": null,
+                    "parent": null,
+                    "type": "promotion",
+                    "order": null,
+                    "orderDeliveryPositions": null,
+                    "cover": null,
+                    "children": null,
+                    "product": null,
+                    "orderTransactionCaptureRefundPositions": null,
+                    "states": [],
+                    "downloads": null,
+                    "promotion": null,
+                    "orderVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "productVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "parentVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+                    "customFields": null,
+                    "id": "019ed4680e08717085430ddc251737bd",
+                    "apiAlias": "order_line_item"
+                }
+            ],
+            "transactions": null,
+            "deepLinkCode": "QRgoZtnP1Dajsm8arUrGXT8UabPyE8VD",
+            "autoIncrement": 19092,
+            "stateMachineState": null,
+            "stateId": "01920ef613be70c39ac4ff075b18c7ee",
+            "primaryOrderDelivery": null,
+            "primaryOrderDeliveryId": "019ed4680e08717085430ddc26d2ade0",
+            "primaryOrderDeliveryVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+            "primaryOrderTransaction": null,
+            "primaryOrderTransactionId": "019ed4680e08717085430ddc27aadfcb",
+            "primaryOrderTransactionVersionId": "0fa91ce3e96a4bc2be4bd9ce752c3425",
+            "documents": null,
+            "tags": null,
+            "affiliateCode": "preisvergleich",
+            "campaignCode": "google",
+            "customerComment": null,
+            "internalComment": null,
+            "ruleIds": [
+                "01920ef612a9702090af3e1b0a0a763f",
+                "01920ef612cb7116aceab89fe0159ca6",
+                "01920ef627867370812587787372891f",
+                "019743cbd6b074c39c7792d9461cfbc9",
+                "019a30bd24ad7a018ca09af9ab4a9ece",
+                "019a3d45e6b772899929a0ea7b4d94bb",
+                "019ada5204ef71038eb9fd1597f8cab0",
+                "019aed9a8b4b7b9780c2cea6d8811186",
+                "019de2e3c3ea7322b7d1bb4ab56d22a4",
+                "01920ef613237338ad4dbfef7acfbda3",
+                "019743ce77db7ba384cf55fcccfd209d",
+                "019ecfa557d5724aafbf677675d31466"
+            ],
+            "createdById": null,
+            "createdBy": null,
+            "updatedById": null,
+            "updatedBy": null,
+            "itemRounding": {
+                "extensions": [],
+                "decimals": 2,
+                "interval": 0.01,
+                "roundForNet": true,
+                "apiAlias": "shopware_core_framework_data_abstraction_layer_pricing_cash_rounding_config"
+            },
+            "totalRounding": {
+                "extensions": [],
+                "decimals": 2,
+                "interval": 0.01,
+                "roundForNet": true,
+                "apiAlias": "shopware_core_framework_data_abstraction_layer_pricing_cash_rounding_config"
+            },
+            "source": null,
+            "taxCalculationType": "horizontal",
+            "customFields": {
+                "swagCommercialCheckoutSweetener": "Na, das wird eine kulinarische Revolution in deiner Küche! Mit deinem neuen Smeg CPF9IPWH Stand-Herd Weiß sieht selbst Tiefkühlpizza plötzlich nach „Chefkoch-Edition“ aus.  \n\nSehr vorbildlich übrigens, dass du dich auch gleich um das alte Gerät kümmerst – das ist wie ein feierlicher Staffelstab-Wechsel in deiner Küche.  \n\nWir wünschen dir viele gelungene Experimente am Herd – und wenn mal etwas anbrennt, kannst du es einfach „kross-gourmet“ nennen."
+            },
+            "id": "019ed4680e08717085430ddc27c55a7f",
+            "apiAlias": "order"
+        }
+    ],
+    "aggregations": []
+}

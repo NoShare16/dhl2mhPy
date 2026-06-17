@@ -1,9 +1,11 @@
 """Bundle grouping for order items — shared by filter and service resolver.
 
-A "bundle" is a set of items sharing the same ``bundle_id`` (Plenty property
-typeId=1021): typically one article (StockLimitation 0/1) plus zero or more
-services (StockLimitation 2). Items without a bundle_id form single-item
-bundles of their own.
+A "bundle" is a set of items sharing the same ``former_parent_id``: typically one
+article (StockLimitation 0/1) plus zero or more services (StockLimitation 2).
+``former_parent_id`` is the Plenty bundle id (property 1021) by default, but
+Shopware's dvsnProductOptionFormerParentId overrides it when present — so the
+grouping follows the Shopware parent for shop orders. Items without a
+former_parent_id form single-item bundles of their own.
 """
 
 from collections import OrderedDict
@@ -15,18 +17,18 @@ from dhl2mh.models import OrderItem
 def group_by_bundle(items: list[OrderItem]) -> list[list[OrderItem]]:
     """Group items into bundles. Preserves first-seen order across groups.
 
-    Items with the same non-None ``bundle_id`` end up in one group; items
-    without a ``bundle_id`` each form their own single-item group.
+    Items with the same non-None ``former_parent_id`` end up in one group; items
+    without a ``former_parent_id`` each form their own single-item group.
     """
     groups: OrderedDict[object, list[OrderItem]] = OrderedDict()
     standalone_counter = 0
 
     for item in items:
-        if item.bundle_id is None:
+        if item.former_parent_id is None:
             key: object = ("standalone", standalone_counter)
             standalone_counter += 1
         else:
-            key = ("bundle", item.bundle_id)
+            key = ("bundle", item.former_parent_id)
         groups.setdefault(key, []).append(item)
 
     return list(groups.values())

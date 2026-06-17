@@ -10,6 +10,7 @@ import httpx
 import structlog
 
 from dhl2mh.config import Settings
+from dhl2mh.models import SwOrder
 
 log = structlog.get_logger()
 
@@ -30,6 +31,7 @@ class ShopwareClient:
 
     TOKEN_PATH = "/api/oauth/token"
     SEARCH_PRODUCT_PATH = "/api/search/product"
+    SEARCH_ORDER_PATH = "/api/search/order"
     TOKEN_REFRESH_BUFFER_S = 60.0
 
     def __init__(self, settings: Settings, *, timeout: float = 30.0) -> None:
@@ -132,6 +134,29 @@ class ShopwareClient:
         if not data:
             return []
         return [str(cid) for cid in (data[0].get("categoryIds") or [])]
+
+    async def get_order(self, order_number: str | int) -> SwOrder | None:
+        """Fetch a single order by orderNumber with its line items + products.
+
+        Returns ``None`` if no order matches. The line item payload carries
+        ``dvsnProductOptionFormerParentId``, which is mapped back onto Plenty
+        order positions in a later stage.
+        """
+        on = str(order_number)
+        body = {
+            "filter": [{"type": "equals", "field": "orderNumber", "value": on}],
+            "associations": {"lineItems": {"associations": {"product": {}}}},
+        }
+        resp = await self._authed_post(self.SEARCH_ORDER_PATH, json=body)
+        if not resp.is_success:
+            raise RuntimeError(
+                f"Shopware order search for {on} failed: "
+                f"HTTP {resp.status_code} — {resp.text[:200]}"
+            )
+        data = resp.json().get("data") or []
+        if not data:
+            return None
+        return SwOrder.model_validate(data[0])
 
     async def get_categories_bulk(
         self,

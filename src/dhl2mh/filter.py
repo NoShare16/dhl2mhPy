@@ -49,7 +49,7 @@ def _why_skip(order: PlentyOrder) -> str | None:
             return "Service-Bundle ohne Artikel"
 
         if len(articles) > 1:
-            bid = bundle[0].bundle_id or "?"
+            bid = bundle[0].former_parent_id or "?"
             return f"Bundle '{bid}' enthält mehrere Artikel"
 
         article_count += len(articles)

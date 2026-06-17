@@ -45,6 +45,15 @@ def test_real_order_bundle_id_extracted_from_property_1021(real_order):
     assert dishwasher.bundle_id is None  # standalone article, no bundle
 
 
+def test_real_order_former_parent_id_seeded_from_property_1021(real_order):
+    """former_parent_id starts as the Plenty 1021 value (Shopware overwrites later)."""
+    o = map_order(real_order, COUNTRIES)
+    by_name = {i.name: i for i in o.order_items}
+    assert by_name["Gutmann Deckenmodul Capa 07 EM"].former_parent_id == "1234"
+    assert by_name["Installationsservice DHL 2MH - BMD"].former_parent_id == "1234"
+    assert by_name["Geschirrspüler SMI69U85EU"].former_parent_id is None
+
+
 def test_real_order_stock_limitation_classifies_article_vs_service(real_order):
     o = map_order(real_order, COUNTRIES)
     by_name = {i.name: i for i in o.order_items}

@@ -9,7 +9,7 @@ Python rewrite of the original C# project. Runs as a cronjob.
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env  # then fill in real values
+cp .env  # then fill in real values
 ```
 
 ## Run

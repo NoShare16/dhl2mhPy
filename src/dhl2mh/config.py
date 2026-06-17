@@ -29,6 +29,11 @@ class DhlSettings(BaseModel):
     uat_base_url: str = "https://deliverit-uat.dhl.com/webdsi/rest/latest"
     prod_base_url: str = "https://deliverit.dhl.com/webdsi/rest/latest"
 
+    # Sender/PartnerId/Id in the DHL XML — DHL assigns one ID per environment
+    # (the user originally documented: "3 = 002 in production, 1 für UAT").
+    uat_sender_partner_id: str = "1"
+    prod_sender_partner_id: str = "3"
+
 
 class SmtpSettings(BaseModel):
     host: str
