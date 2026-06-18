@@ -42,7 +42,12 @@ entscheidet die Pipeline clientseitig.
 
 Aus jedem Roh-Auftrag wird ein `PlentyOrder`:
 
-- **Positionen:** nur `typeId == 1`. Versandkosten (`typeId 6`) etc. fallen weg.
+- **Positionen:** nur `typeId == 1` (normale Position) **und `typeId == 2`**
+  (Bundle-/Set-Parent, z. B. das Service `783117` → AWS+DPW). Bundle-Komponenten
+  (`typeId == 3`, z. B. `783143`/`783147`/`783148`) und Versandkosten (`typeId 6`)
+  fallen weg — die Komponenten sind nur die Erfüllungs-Aufschlüsselung des Sets
+  und würden sonst doppelte/zusätzliche MatchCodes erzeugen. Dasselbe Service
+  eigenständig bestellt kommt als `typeId 1` und bleibt damit erhalten.
   Jede Position bekommt `id = itemVariationId` und `stock_limitation` aus der
   Variation.
 - **`stock_limitation`-Bedeutung:** `0/1` = Artikel, `2` = Service **oder Rabatt**
