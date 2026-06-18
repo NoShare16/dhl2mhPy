@@ -75,6 +75,11 @@ WATER_CONNECTION_MATCH_CODE: Final = "AWS"
 STOCK_LIMITATION_ARTICLE: Final = (0, 1)
 STOCK_LIMITATION_SERVICE: Final = 2
 
+# Plenty order types that should be shipped (order-level ``type_id``). 1 =
+# Verkaufsauftrag, plus 2 and 5 which also represent real, shippable orders.
+# Everything else (returns, credit notes, …) is skipped by the filter.
+SHIPPABLE_ORDER_TYPE_IDS: Final[frozenset[int]] = frozenset({1, 2, 5})
+
 
 class UnknownServiceIdError(ValueError):
     pass

@@ -254,7 +254,7 @@ Geteilt von Filter und Resolver.
 (`_why_skip`, in Reihenfolge):
 
 1. `PackageNumber vorhanden: …` (bereits versandt)
-2. `Kein normaler Auftrag (TypeId: …)` (`type_id != 1`)
+2. `Kein normaler Auftrag (TypeId: …)` (`type_id ∉ {1, 2, 5}`, `SHIPPABLE_ORDER_TYPE_IDS`)
 3. `Service-Bundle ohne Artikel`
 4. `Bundle '…' enthält mehrere Artikel`
 5. `Keine Artikel im Auftrag`
