@@ -168,10 +168,11 @@ Ein Auftrag wird übersprungen, sobald eine dieser Bedingungen zutrifft
 |---|-------|-----------|
 | 1 | `PackageNumber vorhanden: …` | bereits eine Tracking-Nummer (= versandt) |
 | 2 | `Kein normaler Auftrag (TypeId: …)` | `type_id ∉ {1, 2, 5}` |
-| 3 | `Service-Bundle ohne Artikel` | Bundle hat Service(s), aber keinen Artikel |
-| 4 | `Bundle '…' enthält mehrere Artikel` | > 1 Artikel im selben Bundle |
-| 5 | `Keine Artikel im Auftrag` | gar kein Artikel |
-| 6 | `Artikel ohne Gewichtsangabe: …` | Artikel mit `weight == 0/None` |
+| 3 | `Artikel-Bundle (noch nicht unterstützt): …` | Bundle-Parent (Order-Item-`typeId 2`) ist ein **Artikel** (`stock_limitation` 0/1), kein Service-Bundle wie `783117` |
+| 4 | `Service-Bundle ohne Artikel` | Bundle hat Service(s), aber keinen Artikel |
+| 5 | `Bundle '…' enthält mehrere Artikel` | > 1 Artikel im selben Bundle |
+| 6 | `Keine Artikel im Auftrag` | gar kein Artikel |
+| 7 | `Artikel ohne Gewichtsangabe: …` | Artikel mit `weight == 0/None` |
 
 ### Wichtig: Package-Number-Erkennung
 

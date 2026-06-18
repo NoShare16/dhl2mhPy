@@ -255,10 +255,12 @@ Geteilt von Filter und Resolver.
 
 1. `PackageNumber vorhanden: …` (bereits versandt)
 2. `Kein normaler Auftrag (TypeId: …)` (`type_id ∉ {1, 2, 5}`, `SHIPPABLE_ORDER_TYPE_IDS`)
-3. `Service-Bundle ohne Artikel`
-4. `Bundle '…' enthält mehrere Artikel`
-5. `Keine Artikel im Auftrag`
-6. `Artikel ohne Gewichtsangabe: …`
+3. `Artikel-Bundle (noch nicht unterstützt): …` (`_article_bundle_parent`: Bundle-Parent
+   `typeId 2` mit `stock_limitation` 0/1 — Artikel-Bundles werden vorerst geskippt)
+4. `Service-Bundle ohne Artikel`
+5. `Bundle '…' enthält mehrere Artikel`
+6. `Keine Artikel im Auftrag`
+7. `Artikel ohne Gewichtsangabe: …`
 
 Reine Prädikate, keine Mutation. Nutzt `group_by_bundle` / `split_articles_and_services`.
 

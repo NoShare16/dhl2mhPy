@@ -32,7 +32,9 @@ def _order(
     )
 
 
-def _article(item_id: int, *, bundle_id: str | None = None, weight_g: int | None = 1000) -> OrderItem:
+def _article(
+    item_id: int, *, bundle_id: str | None = None, weight_g: int | None = 1000
+) -> OrderItem:
     return OrderItem(
         id=item_id,
         bundle_id=bundle_id,
@@ -115,6 +117,30 @@ def test_skip_when_type_id_not_shippable():
 @pytest.mark.parametrize("type_id", [1, 2, 5])
 def test_pass_when_type_id_shippable(type_id):
     order = _order(type_id=type_id, items=[_article(1)])
+    result = filter_orders([order])
+    assert result.passed == [order]
+    assert result.skipped == []
+
+
+def test_skip_when_order_has_article_bundle():
+    """A bundle parent (order-item typeId 2) that is an article (SL 0/1) is an
+    unsupported article bundle — the whole order is skipped."""
+    bundle = _article(778101)
+    bundle.is_bundle_parent = True
+    order = _order(items=[bundle])
+    result = filter_orders([order])
+    assert len(result.skipped) == 1
+    assert "Artikel-Bundle" in result.skipped[0].reason
+    assert "778101" in result.skipped[0].reason
+
+
+def test_service_bundle_parent_does_not_trigger_article_bundle_skip():
+    """783117-style service bundle (parent SL 2) must NOT be treated as an
+    article bundle — it's a normal service folded into its article."""
+    article = _article(1, bundle_id="X")
+    service_bundle = _service(783117, bundle_id="X")
+    service_bundle.is_bundle_parent = True
+    order = _order(items=[article, service_bundle])
     result = filter_orders([order])
     assert result.passed == [order]
     assert result.skipped == []

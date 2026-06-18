@@ -177,6 +177,12 @@ class OrderItem(BaseModel):
     quantity: Decimal | None = None
     stock_limitation: int = 0
 
+    # True when this position is a Plenty item-bundle PARENT (order-item typeId 2).
+    # A service bundle (e.g. 783117, stock_limitation 2) is folded into its article
+    # like any other service; an article bundle (stock_limitation 0/1) is currently
+    # unsupported and gets the whole order skipped by the filter.
+    is_bundle_parent: bool = False
+
     # Bundle/group key from Plenty property typeId=1021. Items sharing the same
     # bundle_id belong together: typically one article (StockLimitation 0/1) plus
     # zero or more services (StockLimitation 2).
