@@ -167,7 +167,7 @@ Ein Auftrag wird übersprungen, sobald eine dieser Bedingungen zutrifft
 | # | Grund | Bedingung |
 |---|-------|-----------|
 | 1 | `PackageNumber vorhanden: …` | bereits eine Tracking-Nummer (= versandt) |
-| 2 | `Kein normaler Auftrag (TypeId: …)` | `type_id != 1` |
+| 2 | `Kein normaler Auftrag (TypeId: …)` | `type_id ∉ {1, 2, 5}` |
 | 3 | `Service-Bundle ohne Artikel` | Bundle hat Service(s), aber keinen Artikel |
 | 4 | `Bundle '…' enthält mehrere Artikel` | > 1 Artikel im selben Bundle |
 | 5 | `Keine Artikel im Auftrag` | gar kein Artikel |

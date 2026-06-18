@@ -3,6 +3,8 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from dhl2mh.filter import filter_orders
 from dhl2mh.mapper import map_order
 from dhl2mh.mapping import SERVICE_AG, SERVICE_EAN
@@ -103,11 +105,19 @@ def test_empty_string_package_number_is_not_skipped():
     assert result.passed == [order]
 
 
-def test_skip_when_type_id_not_1():
+def test_skip_when_type_id_not_shippable():
     order = _order(type_id=4, items=[_article(1)])
     result = filter_orders([order])
     assert len(result.skipped) == 1
     assert "TypeId: 4" in result.skipped[0].reason
+
+
+@pytest.mark.parametrize("type_id", [1, 2, 5])
+def test_pass_when_type_id_shippable(type_id):
+    order = _order(type_id=type_id, items=[_article(1)])
+    result = filter_orders([order])
+    assert result.passed == [order]
+    assert result.skipped == []
 
 
 def test_skip_when_bundle_has_service_but_no_article():

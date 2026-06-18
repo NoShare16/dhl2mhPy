@@ -8,7 +8,7 @@ auto-attached SWG/VPR) happens later in service_resolver.py.
 from typing import NamedTuple
 
 from dhl2mh.bundles import group_by_bundle, split_articles_and_services
-from dhl2mh.mapping import STOCK_LIMITATION_ARTICLE
+from dhl2mh.mapping import SHIPPABLE_ORDER_TYPE_IDS, STOCK_LIMITATION_ARTICLE
 from dhl2mh.models import OrderItem, PlentyOrder, SkippedOrder
 
 
@@ -38,7 +38,7 @@ def _why_skip(order: PlentyOrder) -> str | None:
     if order.package_number:
         return f"PackageNumber vorhanden: {order.package_number}"
 
-    if order.type_id != 1:
+    if order.type_id not in SHIPPABLE_ORDER_TYPE_IDS:
         return f"Kein normaler Auftrag (TypeId: {order.type_id})"
 
     article_count = 0
