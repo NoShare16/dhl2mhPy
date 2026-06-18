@@ -38,6 +38,20 @@ Plenty and Shopware are **always live** — only the DHL endpoint switches.
 > upload still runs**, so against `APP_ENV=prod` it creates real labels. A true
 > dry run is only safe in UAT.
 
+## Deployment / Update on the server
+
+The code runs on the server as a Git clone, executed by a daily cron job. After
+pushing to GitHub, pull the changes on the server (as root, in the project dir):
+
+```bash
+cd /var/www/vhosts/moebel-staude.de/dhl2mh.moebel-staude.de/private/dhl2mh
+git pull
+.venv/bin/pip install -e .   # only needed when dependencies changed
+```
+
+The cron job picks up the new code on its next run — no change to the scheduled
+task needed. The `.env` is gitignored and is never touched by `git pull`.
+
 ## Documentation
 
 - [`docs/code-reference.md`](docs/code-reference.md) — module-by-module code reference.

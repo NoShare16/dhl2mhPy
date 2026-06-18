@@ -409,3 +409,22 @@ APP_ENV=prod python -m dhl2mh run  # Production
 > ein Dry-Run echte Labels. Details: Logik-Doku Abschnitt 13.
 
 Gedacht für **einen** Lauf pro Cron-Invocation.
+
+### Deployment / Update auf dem Server
+
+Der Code liegt auf dem Server als Git-Clone. Nach einem Push nach GitHub holt
+man die Änderung per `git pull` auf dem Server ab (als root, im Projektordner):
+
+```bash
+cd /var/www/vhosts/moebel-staude.de/dhl2mh.moebel-staude.de/private/dhl2mh
+git pull
+.venv/bin/pip install -e .   # nur nötig, wenn sich Abhängigkeiten geändert haben
+```
+
+Hinweise:
+
+- Der Cronjob nimmt den neuen Stand beim nächsten Lauf automatisch auf — an der
+  geplanten Aufgabe muss nichts geändert werden.
+- `pip install -e .` ist nur bei geänderten `dependencies` in `pyproject.toml`
+  nötig (editable install führt den Code sonst direkt aus).
+- Die `.env` ist gitignored und wird von `git pull` nie überschrieben.
