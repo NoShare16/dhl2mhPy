@@ -22,7 +22,17 @@ ADDRESS_OPTION_PHONE = 4
 ADDRESS_OPTION_EMAIL = 5
 ITEM_PROPERTY_BUNDLE_ID = 1021
 ORDER_PROPERTY_SHOPWARE_ID = 7
+
+# Plenty order-item types. A "Set" service (e.g. 783117 → AWS+DPW) comes back as
+# a bundle PARENT (typeId 2) plus its fulfilment COMPONENTS (typeId 3, e.g.
+# 783143/783147/783148). We read the parent — it carries the service id we map —
+# and drop the components, which would otherwise emit duplicate/extra MatchCodes.
+# The same service ordered standalone arrives as a normal position (typeId 1), so
+# keying on the order-item typeId keeps that case working.
 ORDER_ITEM_TYPE_ARTICLE = 1
+ORDER_ITEM_TYPE_BUNDLE = 2
+ORDER_ITEM_TYPE_BUNDLE_COMPONENT = 3
+KEPT_ORDER_ITEM_TYPES = frozenset({ORDER_ITEM_TYPE_ARTICLE, ORDER_ITEM_TYPE_BUNDLE})
 COUNTRY_FALLBACK = "FEHLER"
 
 
@@ -79,7 +89,7 @@ def _map_addresses(api: ApiOrder, country_codes: dict[int, str]) -> list[Address
 def _map_order_items(api: ApiOrder) -> list[OrderItem]:
     items: list[OrderItem] = []
     for it in api.order_items:
-        if it.type_id != ORDER_ITEM_TYPE_ARTICLE:
+        if it.type_id not in KEPT_ORDER_ITEM_TYPES:
             continue
         variation = it.variation
         items.append(
@@ -88,6 +98,7 @@ def _map_order_items(api: ApiOrder) -> list[OrderItem]:
                 name=it.order_item_name,
                 quantity=it.quantity,
                 stock_limitation=variation.stock_limitation if variation else 0,
+                is_bundle_parent=it.type_id == ORDER_ITEM_TYPE_BUNDLE,
                 packages=it.quantity,
                 # former_parent_id seeds from bundle_id automatically (OrderItem
                 # validator); Shopware overwrites it later when a value exists.

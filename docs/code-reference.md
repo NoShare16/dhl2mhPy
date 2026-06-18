@@ -204,7 +204,9 @@ Alle drei: ein Client pro Lauf, als `async with`, eigener `httpx.AsyncClient`.
 - **Adresse:** Lieferadresse über `addressRelations.typeId == 2`,
   Kunde über `relations.relation == "receiver"`, Land via `country_codes`
   (Fallback `"FEHLER"`).
-- **Positionen** (`_map_order_items`): nur `typeId == 1`. `id = itemVariationId`,
+- **Positionen** (`_map_order_items`): `typeId ∈ {1, 2}` (`KEPT_ORDER_ITEM_TYPES`)
+  — normale Position **und** Bundle-/Set-Parent (z. B. `783117`). Komponenten
+  (`typeId 3`) und Versandkosten (`typeId 6`) fallen weg. `id = itemVariationId`,
   `stock_limitation` aus der Variation, `bundle_id` aus Item-Property
   `typeId 1021` (→ seedet `former_parent_id`), Maße/Gewicht aus der Variation.
 - **`shopware_id`:** Order-Property `typeId 7` (= Shopware-`orderNumber`).
@@ -252,11 +254,13 @@ Geteilt von Filter und Resolver.
 (`_why_skip`, in Reihenfolge):
 
 1. `PackageNumber vorhanden: …` (bereits versandt)
-2. `Kein normaler Auftrag (TypeId: …)` (`type_id != 1`)
-3. `Service-Bundle ohne Artikel`
-4. `Bundle '…' enthält mehrere Artikel`
-5. `Keine Artikel im Auftrag`
-6. `Artikel ohne Gewichtsangabe: …`
+2. `Kein normaler Auftrag (TypeId: …)` (`type_id ∉ {1, 2, 5}`, `SHIPPABLE_ORDER_TYPE_IDS`)
+3. `Artikel-Bundle (noch nicht unterstützt): …` (`_article_bundle_parent`: Bundle-Parent
+   `typeId 2` mit `stock_limitation` 0/1 — Artikel-Bundles werden vorerst geskippt)
+4. `Service-Bundle ohne Artikel`
+5. `Bundle '…' enthält mehrere Artikel`
+6. `Keine Artikel im Auftrag`
+7. `Artikel ohne Gewichtsangabe: …`
 
 Reine Prädikate, keine Mutation. Nutzt `group_by_bundle` / `split_articles_and_services`.
 
