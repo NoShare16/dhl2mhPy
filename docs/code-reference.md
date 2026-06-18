@@ -204,7 +204,9 @@ Alle drei: ein Client pro Lauf, als `async with`, eigener `httpx.AsyncClient`.
 - **Adresse:** Lieferadresse über `addressRelations.typeId == 2`,
   Kunde über `relations.relation == "receiver"`, Land via `country_codes`
   (Fallback `"FEHLER"`).
-- **Positionen** (`_map_order_items`): nur `typeId == 1`. `id = itemVariationId`,
+- **Positionen** (`_map_order_items`): `typeId ∈ {1, 2}` (`KEPT_ORDER_ITEM_TYPES`)
+  — normale Position **und** Bundle-/Set-Parent (z. B. `783117`). Komponenten
+  (`typeId 3`) und Versandkosten (`typeId 6`) fallen weg. `id = itemVariationId`,
   `stock_limitation` aus der Variation, `bundle_id` aus Item-Property
   `typeId 1021` (→ seedet `former_parent_id`), Maße/Gewicht aus der Variation.
 - **`shopware_id`:** Order-Property `typeId 7` (= Shopware-`orderNumber`).

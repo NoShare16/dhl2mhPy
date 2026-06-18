@@ -6,15 +6,24 @@ from pathlib import Path
 import pytest
 
 from dhl2mh.mapper import map_order
-from dhl2mh.models import ApiOrder
+from dhl2mh.models import ApiOrder, ApiOrderPage
 
 FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
+ORDERS_FIXTURE = Path(__file__).parent / "fixtures" / "plenty_orders.json"
 COUNTRIES = {1: "DE", 2: "AT"}
 
 
 @pytest.fixture
 def real_order() -> ApiOrder:
     return ApiOrder.model_validate(json.loads(FIXTURE.read_text()))
+
+
+@pytest.fixture
+def order_783117() -> ApiOrder:
+    """Real order MK89576 (id 237553): article + AG service + the 783117 set
+    (bundle parent typeId 2) with its components 783143/783147/783148 (typeId 3)."""
+    page = ApiOrderPage.model_validate(json.loads(ORDERS_FIXTURE.read_text()))
+    return next(o for o in page.entries if o.id == 237553)
 
 
 def test_real_order_top_level_fields(real_order):
@@ -100,6 +109,35 @@ def test_real_order_package_number_none_when_only_empty_package(real_order):
     o = map_order(real_order, COUNTRIES)
     # Fixture's single shipping package has packageNumber="" → treated as "no number"
     assert o.package_number is None
+
+
+# ── 783117 bundle set (parent kept, components dropped) ─────────────────────
+
+
+def test_bundle_parent_783117_is_kept(order_783117):
+    """The set service 783117 arrives as a bundle parent (typeId 2) and must be
+    read — it's the position carrying the AWS+DPW MatchCodes."""
+    o = map_order(order_783117, COUNTRIES)
+    ids = {i.id for i in o.order_items}
+    assert 783117 in ids
+    parent = next(i for i in o.order_items if i.id == 783117)
+    assert parent.stock_limitation == 2
+
+
+def test_bundle_components_783143_147_148_are_dropped(order_783117):
+    """The set's fulfilment components (typeId 3) must not become services —
+    otherwise they'd emit duplicate/extra MatchCodes alongside the parent."""
+    o = map_order(order_783117, COUNTRIES)
+    ids = {i.id for i in o.order_items}
+    assert ids.isdisjoint({783143, 783147, 783148})
+
+
+def test_bundle_order_keeps_article_and_standalone_service(order_783117):
+    o = map_order(order_783117, COUNTRIES)
+    ids = {i.id for i in o.order_items}
+    assert 784144 in ids  # the article
+    assert 783116 in ids  # standalone AG service (typeId 1)
+    assert 0 not in ids  # shipping costs (typeId 6) dropped
 
 
 # ── edge cases ──────────────────────────────────────────────────────────────
