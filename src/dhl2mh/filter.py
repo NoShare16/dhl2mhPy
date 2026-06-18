@@ -41,6 +41,10 @@ def _why_skip(order: PlentyOrder) -> str | None:
     if order.type_id not in SHIPPABLE_ORDER_TYPE_IDS:
         return f"Kein normaler Auftrag (TypeId: {order.type_id})"
 
+    article_bundle = _article_bundle_parent(order.order_items)
+    if article_bundle is not None:
+        return f"Artikel-Bundle (noch nicht unterstützt): {article_bundle.id}"
+
     article_count = 0
     for bundle in group_by_bundle(order.order_items):
         articles, services = split_articles_and_services(bundle)
@@ -61,6 +65,20 @@ def _why_skip(order: PlentyOrder) -> str | None:
     if missing_weight is not None:
         return f"Artikel ohne Gewichtsangabe: {missing_weight.id}"
 
+    return None
+
+
+def _article_bundle_parent(items: list[OrderItem]) -> OrderItem | None:
+    """First article-bundle parent, or None.
+
+    A bundle parent (order-item typeId 2) whose stock_limitation marks it an
+    article (0/1) — as opposed to a service bundle like 783117 (SL 2). Article
+    bundles aren't supported yet (weight sits on the parent, components carry
+    none), so their order is skipped rather than mis-shipped.
+    """
+    for item in items:
+        if item.is_bundle_parent and item.stock_limitation in STOCK_LIMITATION_ARTICLE:
+            return item
     return None
 
 

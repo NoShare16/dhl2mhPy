@@ -1,0 +1,716 @@
+{
+    "id": 237614,
+    "referrerId": 56,
+    "roundTotalsOnly": true,
+    "numberOfDecimals": 4,
+    "statusName": "[6.1] Packtisch",
+    "plentyId": 21456,
+    "typeId": 1,
+    "lockStatus": "unlocked",
+    "locationId": 1,
+    "createdAt": "2026-06-15T13:40:28+02:00",
+    "updatedAt": "2026-06-18T07:08:19+02:00",
+    "statusId": 6.1,
+    "ownerId": 66,
+    "relations": [
+        {
+            "orderId": 237614,
+            "referenceType": "warehouse",
+            "referenceId": 110,
+            "relation": "sender"
+        },
+        {
+            "orderId": 237614,
+            "referenceType": "contact",
+            "referenceId": 4047922,
+            "relation": "receiver"
+        }
+    ],
+    "properties": [
+        {
+            "orderId": 237614,
+            "typeId": 3,
+            "value": "6000",
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 6,
+            "value": "de",
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 7,
+            "value": "MK89608",
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 66,
+            "value": "Rest",
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 68,
+            "value": "rest",
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 94,
+            "value": "1",
+            "createdAt": "2026-06-15T13:40:41+02:00",
+            "updatedAt": "2026-06-15T13:40:41+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 1,
+            "value": "110"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 4,
+            "value": "fullyPaid"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 2,
+            "value": "6"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 15,
+            "value": "19"
+        }
+    ],
+    "dates": [
+        {
+            "orderId": 237614,
+            "typeId": 2,
+            "date": "2026-06-15T13:40:28+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 4,
+            "date": "2026-06-18T07:08:19+02:00"
+        },
+        {
+            "orderId": 237614,
+            "typeId": 3,
+            "date": "2026-06-16T00:00:00+02:00"
+        }
+    ],
+    "amounts": [
+        {
+            "id": 237922,
+            "orderId": 237614,
+            "isSystemCurrency": true,
+            "isNet": false,
+            "currency": "EUR",
+            "exchangeRate": 1,
+            "netTotal": 1929.08,
+            "grossTotal": 2295.6,
+            "vatTotal": 366.52,
+            "invoiceTotal": 2295.6,
+            "paidAmount": 2295.6,
+            "giftCardAmount": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-17T08:58:05+02:00",
+            "shippingCostsGross": 0,
+            "shippingCostsNet": 0,
+            "taxlessAmount": 0,
+            "prepaidAmount": 0,
+            "vats": [
+                {
+                    "id": 191520,
+                    "orderAmountId": 237922,
+                    "countryVatId": 1,
+                    "vatField": 0,
+                    "vatRate": 19,
+                    "value": 366.52,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00",
+                    "netTotal": 1929.08,
+                    "grossTotal": 2295.6
+                }
+            ]
+        }
+    ],
+    "orderReferences": [],
+    "orderItems": [
+        {
+            "id": 475152,
+            "orderId": 237614,
+            "typeId": 1,
+            "referrerId": 56,
+            "itemVariationId": 787119,
+            "quantity": 1,
+            "orderItemName": "2% Rabatt bei Vorkasse per Überweisung",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": 110,
+            "orderProperties": [],
+            "properties": [
+                {
+                    "id": 2086565,
+                    "orderItemId": 475152,
+                    "typeId": 1,
+                    "value": "110",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086566,
+                    "orderItemId": 475152,
+                    "typeId": 21,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489129,
+                    "orderItemId": 475152,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 0,
+                    "priceOriginalGross": -52.4,
+                    "priceOriginalNet": -44.0336,
+                    "priceGross": -52.4,
+                    "priceNet": -44.0336,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": []
+        },
+        {
+            "id": 475153,
+            "orderId": 237614,
+            "typeId": 1,
+            "referrerId": 56,
+            "itemVariationId": 787170,
+            "quantity": 1,
+            "orderItemName": "Newsletter - 10 EUR Preisvorteil",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": 110,
+            "orderProperties": [],
+            "properties": [
+                {
+                    "id": 2086567,
+                    "orderItemId": 475153,
+                    "typeId": 1,
+                    "value": "110",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086568,
+                    "orderItemId": 475153,
+                    "typeId": 21,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489130,
+                    "orderItemId": 475153,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 0,
+                    "priceOriginalGross": -10,
+                    "priceOriginalNet": -8.4034,
+                    "priceGross": -10,
+                    "priceNet": -8.4034,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": []
+        },
+        {
+            "id": 475154,
+            "orderId": 237614,
+            "typeId": 1,
+            "referrerId": 56,
+            "itemVariationId": 787484,
+            "quantity": 1,
+            "orderItemName": "Deal Weeks - 10% auf Quooker",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": 110,
+            "orderProperties": [],
+            "properties": [
+                {
+                    "id": 2086569,
+                    "orderItemId": 475154,
+                    "typeId": 1,
+                    "value": "110",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086570,
+                    "orderItemId": 475154,
+                    "typeId": 21,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489131,
+                    "orderItemId": 475154,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 0,
+                    "priceOriginalGross": -262,
+                    "priceOriginalNet": -220.1681,
+                    "priceGross": -262,
+                    "priceNet": -220.1681,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": []
+        },
+        {
+            "id": 475155,
+            "orderId": 237614,
+            "typeId": 2,
+            "referrerId": 56,
+            "itemVariationId": 778101,
+            "quantity": 1,
+            "orderItemName": "[BUNDLE] Quooker 3NSRVSCUBE",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": 110,
+            "orderProperties": [],
+            "properties": [
+                {
+                    "id": 2086571,
+                    "orderItemId": 475155,
+                    "typeId": 1,
+                    "value": "110",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086572,
+                    "orderItemId": 475155,
+                    "typeId": 11,
+                    "value": "12000",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086573,
+                    "orderItemId": 475155,
+                    "typeId": 21,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489132,
+                    "orderItemId": 475155,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 1431.09,
+                    "priceOriginalGross": 2620,
+                    "priceOriginalNet": 2201.6807,
+                    "priceGross": 2620,
+                    "priceNet": 2201.6807,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": []
+        },
+        {
+            "id": 475156,
+            "orderId": 237614,
+            "typeId": 3,
+            "referrerId": 56,
+            "itemVariationId": 783103,
+            "quantity": 1,
+            "orderItemName": "[-] Quooker CUBE Trinkwasser-Reservoir inkl. 5 Jahre Garantie",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": 110,
+            "orderProperties": [],
+            "properties": [
+                {
+                    "id": 2086574,
+                    "orderItemId": 475156,
+                    "typeId": 1,
+                    "value": "110",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086576,
+                    "orderItemId": 475156,
+                    "typeId": 21,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086575,
+                    "orderItemId": 475156,
+                    "typeId": 26,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086585,
+                    "orderItemId": 475156,
+                    "typeId": 30,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-18T07:00:08+02:00"
+                }
+            ],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489133,
+                    "orderItemId": 475156,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 0,
+                    "priceOriginalGross": 0,
+                    "priceOriginalNet": 0,
+                    "priceGross": 0,
+                    "priceNet": 0,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": [
+                {
+                    "id": 89139,
+                    "orderItemId": 475156,
+                    "referenceOrderItemId": 475155,
+                    "referenceType": "bundle",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ]
+        },
+        {
+            "id": 475157,
+            "orderId": 237614,
+            "typeId": 3,
+            "referrerId": 56,
+            "itemVariationId": 785301,
+            "quantity": 1,
+            "orderItemName": "[-] Quooker PRO3 Trinkwasser-Reservoir Edelstahl",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": 110,
+            "orderProperties": [],
+            "properties": [
+                {
+                    "id": 2086577,
+                    "orderItemId": 475157,
+                    "typeId": 1,
+                    "value": "110",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086579,
+                    "orderItemId": 475157,
+                    "typeId": 21,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086578,
+                    "orderItemId": 475157,
+                    "typeId": 26,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086583,
+                    "orderItemId": 475157,
+                    "typeId": 30,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-18T07:00:08+02:00"
+                }
+            ],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489134,
+                    "orderItemId": 475157,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 0,
+                    "priceOriginalGross": 0,
+                    "priceOriginalNet": 0,
+                    "priceGross": 0,
+                    "priceNet": 0,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": [
+                {
+                    "id": 89140,
+                    "orderItemId": 475157,
+                    "referenceOrderItemId": 475155,
+                    "referenceType": "bundle",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ]
+        },
+        {
+            "id": 475158,
+            "orderId": 237614,
+            "typeId": 3,
+            "referrerId": 56,
+            "itemVariationId": 785307,
+            "quantity": 1,
+            "orderItemName": "[-] Quooker NSSSST Armatur Edelstahl inkl. 5 Jahre Garantie",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": 110,
+            "orderProperties": [],
+            "properties": [
+                {
+                    "id": 2086580,
+                    "orderItemId": 475158,
+                    "typeId": 1,
+                    "value": "110",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086582,
+                    "orderItemId": 475158,
+                    "typeId": 21,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086581,
+                    "orderItemId": 475158,
+                    "typeId": 26,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                },
+                {
+                    "id": 2086584,
+                    "orderItemId": 475158,
+                    "typeId": 30,
+                    "value": "1",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-18T07:00:08+02:00"
+                }
+            ],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489135,
+                    "orderItemId": 475158,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 0,
+                    "priceOriginalGross": 0,
+                    "priceOriginalNet": 0,
+                    "priceGross": 0,
+                    "priceNet": 0,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": [
+                {
+                    "id": 89141,
+                    "orderItemId": 475158,
+                    "referenceOrderItemId": 475155,
+                    "referenceType": "bundle",
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ]
+        },
+        {
+            "id": 475159,
+            "orderId": 237614,
+            "typeId": 6,
+            "referrerId": 56,
+            "itemVariationId": 0,
+            "quantity": 1,
+            "orderItemName": "Shipping Costs",
+            "attributeValues": null,
+            "shippingProfileId": 0,
+            "countryVatId": 1,
+            "vatField": 0,
+            "vatRate": 19,
+            "position": 0,
+            "createdAt": "2026-06-15T13:40:28+02:00",
+            "updatedAt": "2026-06-15T13:40:28+02:00",
+            "warehouseId": null,
+            "orderProperties": [],
+            "properties": [],
+            "dates": [],
+            "amounts": [
+                {
+                    "id": 489136,
+                    "orderItemId": 475159,
+                    "isSystemCurrency": true,
+                    "currency": "EUR",
+                    "exchangeRate": 1,
+                    "purchasePrice": 0,
+                    "priceOriginalGross": 0,
+                    "priceOriginalNet": 0,
+                    "priceGross": 0,
+                    "priceNet": 0,
+                    "surcharge": 0,
+                    "discount": 0,
+                    "isPercentage": true,
+                    "createdAt": "2026-06-15T13:40:28+02:00",
+                    "updatedAt": "2026-06-15T13:40:28+02:00"
+                }
+            ],
+            "references": []
+        }
+    ],
+    "addressRelations": [
+        {
+            "id": 375769,
+            "orderId": 237614,
+            "typeId": 1,
+            "addressId": 341364
+        },
+        {
+            "id": 375770,
+            "orderId": 237614,
+            "typeId": 2,
+            "addressId": 341365
+        }
+    ],
+    "shippingPackages": [
+        {
+            "id": 135348,
+            "orderId": 237614,
+            "packageId": 1,
+            "weight": 34000,
+            "extraWeight": 0,
+            "itemsWeight": 34000,
+            "packageNumber": "",
+            "labelPath": "",
+            "packageType": 0,
+            "volume": 29.391,
+            "palletId": null,
+            "isClosed": null,
+            "createdAt": "2026-06-15 13:40:41",
+            "updatedAt": "2026-06-15 13:40:41",
+            "returnPackageNumber": "",
+            "packageSscc": "",
+            "mrn": "",
+            "atlasRegistration": 0,
+            "trackingStatusId": null
+        }
+    ]
+}
