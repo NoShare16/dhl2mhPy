@@ -227,10 +227,15 @@ async def test_pipeline_smoke_runs_end_to_end(settings):
     pushed_body = plenty_push.calls[0].request.content.decode()
     assert "00340999900012345678" in pushed_body
 
-    # Skipped report mail was sent
+    # Report mail covers both the filter-skipped order (900002) and the order
+    # that uploaded but got no label back (235655, the fixture order).
     smtp_cls.assert_called_once()
     msg = smtp_client.send_message.call_args[0][0]
-    assert "1 Order(s) übersprungen" in msg["Subject"]
+    assert "2 Order(s) benötigen Prüfung" in msg["Subject"]
+    body = msg.get_content()
+    assert "900002" in body
+    assert "235655" in body
+    assert "kein Label" in body  # the missing-label reason text
 
 
 async def test_pipeline_dry_run_uploads_but_skips_plenty_and_mail(settings):
