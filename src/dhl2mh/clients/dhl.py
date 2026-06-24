@@ -55,8 +55,12 @@ class DhlClient:
 
     # ── upload ──────────────────────────────────────────────────────────────
 
-    async def upload_order_xml(self, xml_bytes: bytes) -> str:
-        """POST one order's XML. Returns response body. Raises on non-2xx."""
+    async def upload_order_xml(self, xml_bytes: bytes, *, order_id: int | None = None) -> str:
+        """POST one order's XML. Returns response body. Raises on non-2xx.
+
+        ``order_id`` is logged only — it lets the cron log say *which* order was
+        transmitted (a 2xx here means "DHL received it", not "label produced").
+        """
         resp = await self._client.post(
             f"/transmission/{self._mandant}",
             content=xml_bytes,
@@ -67,9 +71,10 @@ class DhlClient:
         )
         if not resp.is_success:
             raise RuntimeError(
-                f"DHL upload failed: HTTP {resp.status_code} — {resp.text[:300]}"
+                f"DHL upload failed (order {order_id}): "
+                f"HTTP {resp.status_code} — {resp.text[:300]}"
             )
-        log.info("dhl.uploaded", status=resp.status_code, size=len(xml_bytes))
+        log.info("dhl.uploaded", order_id=order_id, status=resp.status_code, size=len(xml_bytes))
         return resp.text
 
     # ── label status ────────────────────────────────────────────────────────

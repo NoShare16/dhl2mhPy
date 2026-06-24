@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import respx
+import structlog
 
 from dhl2mh.mapping import SERVICE_AG
 from dhl2mh.pipeline import run_pipeline
@@ -282,6 +283,72 @@ async def test_pipeline_dry_run_uploads_but_skips_plenty_and_mail(settings):
     assert summary.tracking_pushed == 0
     assert plenty_push.call_count == 0
     smtp_cls.assert_not_called()
+
+
+async def test_pipeline_logs_per_order_skip_reason_and_missing_labels(settings):
+    """The cron log must name each dropped/unlabelled order, not just counts.
+
+    The synthetic skip order (900002) is dropped for a missing former_parent_id
+    and the fixture order is uploaded but gets no label back (the status XML only
+    carries 900001), so it must surface as ``pipeline.labels_missing``.
+    """
+    fixture_order = json.loads(FIXTURE.read_text())
+    orders_page = {
+        "isLastPage": True,
+        "entries": [
+            fixture_order,
+            _to_jsonable(_synthetic_clean_order()),
+            _to_jsonable(_synthetic_skip_order()),
+        ],
+    }
+
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+        structlog.testing.capture_logs() as logs,
+    ):
+        plenty_base = settings.plenty.base_url
+        router.post(f"{plenty_base}/rest/login").respond(
+            200, json={"access_token": "plenty-tok"}
+        )
+        router.get(f"{plenty_base}/rest/orders/shipping/countries").respond(
+            200, json=[{"id": 1, "isoCode2": "DE"}]
+        )
+        router.get(f"{plenty_base}/rest/orders/search").respond(200, json=orders_page)
+        router.post(
+            f"{plenty_base}/rest/orders/900001/shipping/packages"
+        ).respond(200, json={})
+
+        sw_base = settings.shopware.base_url
+        router.post(f"{sw_base}/api/oauth/token").respond(
+            200, json={"access_token": "sw-tok", "expires_in": 600}
+        )
+        router.post(f"{sw_base}/api/search/product").respond(200, json={"data": []})
+        router.post(f"{sw_base}/api/search/order").respond(200, json={"data": []})
+
+        dhl_base = settings.dhl_base_url
+        router.post(f"{dhl_base}/transmission/{settings.dhl_username}").respond(
+            200, text="<Ack/>"
+        )
+        router.get(f"{dhl_base}/transmissionStatus/{settings.dhl_username}").respond(
+            200, content=_SAMPLE_LABEL_XML
+        )
+
+        await run_pipeline(settings)
+
+    # 900002 is skipped → its order_id + reason are logged (not just a count)
+    skip_events = [e for e in logs if e["event"] == "pipeline.order_skipped"]
+    assert any(e["order_id"] == 900002 for e in skip_events)
+
+    # Both uploads name their order_id; the aggregate carries the id list
+    uploaded = next(e for e in logs if e["event"] == "pipeline.uploaded")
+    assert 900001 in uploaded["order_ids"]
+
+    # The fixture order uploaded but got no label back → reconciliation warning
+    missing = next(e for e in logs if e["event"] == "pipeline.labels_missing")
+    assert 900001 not in missing["order_ids"]  # 900001 did get a label
+    assert missing["count"] == len(missing["order_ids"]) >= 1
 
 
 async def _no_sleep(_seconds):
