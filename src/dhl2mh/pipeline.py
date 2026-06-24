@@ -77,6 +77,7 @@ async def run_pipeline(
             passed=len(fp.passed),
             skipped=len(fp.skipped),
         )
+        _log_skipped("former_parent", fp.skipped)
 
         # 5. Filter (bundle structure, package number, article weight, …)
         filtered = filter_orders(fp.passed)
@@ -85,6 +86,7 @@ async def run_pipeline(
             passed=len(filtered.passed),
             skipped=len(filtered.skipped),
         )
+        _log_skipped("filter", filtered.skipped)
 
         if not filtered.passed:
             _maybe_send_report(fp.skipped + filtered.skipped, settings, dry_run=dry_run)
@@ -106,18 +108,20 @@ async def run_pipeline(
             passed=len(resolved.passed),
             skipped=len(resolved.skipped),
         )
+        _log_skipped("resolve", resolved.skipped)
 
         # 8. Build XML + upload
         builder = OrderXmlBuilder(
             sending_party_id=settings.dhl_username,
             sender_partner_id="3" if settings.is_production else "1",
         )
-        uploaded = 0
+        uploaded_ids: list[int] = []
         for order in resolved.passed:
             xml = builder.build(order)
-            await dhl.upload_order_xml(xml)
-            uploaded += 1
-        log.info("pipeline.uploaded", count=uploaded)
+            await dhl.upload_order_xml(xml, order_id=order.id)
+            uploaded_ids.append(order.id)
+        uploaded = len(uploaded_ids)
+        log.info("pipeline.uploaded", count=uploaded, order_ids=uploaded_ids)
 
         # 9. Wait for DHL processing, then pull labels
         wait_s = settings.dhl.label_wait_seconds
@@ -127,6 +131,19 @@ async def run_pipeline(
 
         labels = await dhl.get_labels()
         log.info("pipeline.labels_received", count=len(labels))
+
+        # Reconcile: an order transmitted this run that produced no label is the
+        # silent-failure case (DHL rejected it, or its label is slow). The single
+        # status pull is a snapshot, so this is a warning to investigate, not an
+        # error — a later run may still pick the label up.
+        label_ids = {label.order_id for label in labels}
+        missing_labels = [oid for oid in uploaded_ids if oid not in label_ids]
+        if missing_labels:
+            log.warning(
+                "pipeline.labels_missing",
+                count=len(missing_labels),
+                order_ids=missing_labels,
+            )
 
         # 10. Push OrderIdent back to Plenty (skipped in dry-run)
         tracking_pushed = 0
@@ -167,6 +184,18 @@ async def run_pipeline(
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
+
+def _log_skipped(stage: str, skipped: list[SkippedOrder]) -> None:
+    """One log line per skipped order so the cron log shows *which* order was
+    dropped *why* — the reason otherwise lives only in the report mail."""
+    for order in skipped:
+        log.info(
+            "pipeline.order_skipped",
+            stage=stage,
+            order_id=order.order_id,
+            reason=order.reason,
+        )
 
 
 async def _enrich_categories(
