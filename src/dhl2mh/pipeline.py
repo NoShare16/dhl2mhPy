@@ -137,12 +137,12 @@ async def run_pipeline(
         # status pull is a snapshot, so this is a warning to investigate, not an
         # error — a later run may still pick the label up.
         label_ids = {label.order_id for label in labels}
-        missing_labels = [oid for oid in uploaded_ids if oid not in label_ids]
-        if missing_labels:
+        missing_label_orders = [o for o in resolved.passed if o.id not in label_ids]
+        if missing_label_orders:
             log.warning(
                 "pipeline.labels_missing",
-                count=len(missing_labels),
-                order_ids=missing_labels,
+                count=len(missing_label_orders),
+                order_ids=[o.id for o in missing_label_orders],
             )
 
         # 10. Push OrderIdent back to Plenty (skipped in dry-run)
@@ -169,9 +169,16 @@ async def run_pipeline(
                     error=str(e),
                 )
 
-        # 11. Mail report (skipped in dry-run)
+        # 11. Mail report (skipped in dry-run). Includes both the filter-skipped
+        # orders and the ones that were transmitted but came back without a label
+        # — the latter are the ones actually worth a manual look.
+        missing_label_reports = [
+            _order_to_skipped(o, LABEL_MISSING_REASON) for o in missing_label_orders
+        ]
         _maybe_send_report(
-            filtered.skipped + fp.skipped + resolved.skipped, settings, dry_run=dry_run
+            filtered.skipped + fp.skipped + resolved.skipped + missing_label_reports,
+            settings,
+            dry_run=dry_run,
         )
 
         return PipelineSummary(
@@ -184,6 +191,24 @@ async def run_pipeline(
 
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
+
+LABEL_MISSING_REASON = (
+    "Zu DHL übertragen, aber kein Label im Statusabruf gefunden "
+    "(DHL-Ablehnung oder Label verzögert) — bitte prüfen"
+)
+
+
+def _order_to_skipped(order: PlentyOrder, reason: str) -> SkippedOrder:
+    """Build a report entry for an order that left the happy path."""
+    name = order.addresses[0].full_name if order.addresses else ""
+    return SkippedOrder(
+        order_id=order.id,
+        order_date=order.order_date,
+        reason=reason,
+        customer_name=name or "N/A",
+        item_count=len(order.order_items),
+    )
 
 
 def _log_skipped(stage: str, skipped: list[SkippedOrder]) -> None:

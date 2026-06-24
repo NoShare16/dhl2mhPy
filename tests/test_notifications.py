@@ -50,7 +50,7 @@ def test_message_headers_and_body_contain_key_data(settings):
     msg = client.send_message.call_args[0][0]
     assert msg["To"] == settings.report_recipient_email
     assert settings.smtp.from_email in msg["From"]
-    assert "1 Order(s) übersprungen" in msg["Subject"]
+    assert "1 Order(s) benötigen Prüfung" in msg["Subject"]
     assert "01.03.2025 14:05" in msg["Subject"]
 
     body = msg.get_content()

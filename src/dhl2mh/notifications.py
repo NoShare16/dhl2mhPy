@@ -28,7 +28,7 @@ def send_skipped_orders_report(
     msg["From"] = f"{settings.smtp.from_name} <{settings.smtp.from_email}>"
     msg["To"] = settings.report_recipient_email
     msg["Subject"] = (
-        f"DHL Workflow: {len(skipped)} Order(s) übersprungen — "
+        f"DHL Workflow: {len(skipped)} Order(s) benötigen Prüfung — "
         f"{now.strftime('%d.%m.%Y %H:%M')}"
     )
     msg.set_content(_build_body(skipped, now))
@@ -51,7 +51,8 @@ def _build_body(skipped: list[SkippedOrder], now: datetime) -> str:
         "Hallo,",
         "",
         f"beim DHL-Workflow am {now.strftime('%d.%m.%Y')} um "
-        f"{now.strftime('%H:%M')} Uhr wurden {len(skipped)} Order(s) übersprungen.",
+        f"{now.strftime('%H:%M')} Uhr benötigen {len(skipped)} Order(s) eine Prüfung "
+        "(übersprungen oder ohne DHL-Label zurückgekommen).",
         "",
         "Diese Orders benötigen manuelle Überprüfung:",
         "",
