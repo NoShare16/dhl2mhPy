@@ -54,7 +54,7 @@ Der gesamte Lauf ist async und nutzt je einen Client pro Workflow
 ```
 PlentyClient.iter_orders ─► map_order ─► _enrich_from_shopware_order
    ─► require_service_former_parent_ids ─► filter_orders
-   ─► _enrich_categories ─► resolve_orders
+   ─► _enrich_from_shopware_product ─► resolve_orders
    ─► OrderXmlBuilder.build ─► DhlClient.upload_order_xml
    ─► (warten) ─► DhlClient.get_labels ─► PlentyClient.update_package
    ─► send_skipped_orders_report
@@ -137,6 +137,9 @@ Drei Gruppen. Alle API-Modelle erben von `_ApiModel`
 - `SwLineItemPayload` — `product_number`, `dvsn_product_option_former_parent_id`
 - `SwPropertyOption` — `name`, `group_id` (Property-Werte, z. B. „Wasseranschluss")
 - `SwProduct` — `product_number`, `properties` (null-tolerant via `field_validator`)
+- `SwProductInfo` — flaches `/api/search/product`-Ergebnis: `product_number`,
+  `manufacturer_number`, `category_ids`, `properties`; `color(group_id)` liefert
+  den Namen der Farb-Property. Basis für Kategorien **und** den DHL-`ProductName`.
 - `SwOrderLineItem` — `type`, `label`, `referenced_id`, `product_id`, `payload`, `product`
 - `SwOrder` — `order_number`, `line_items`
 
@@ -176,8 +179,11 @@ Alle drei: ein Client pro Lauf, als `async with`, eigener `httpx.AsyncClient`.
 - **Auth:** OAuth `client_credentials` (`/api/oauth/token`). Token hat TTL
   (`expires_in`) und wird proaktiv (Buffer 60 s) sowie bei `401` erneuert.
   Header: `Authorization: Bearer …` **und** `sw-access-key`.
-- **`get_categories(product_number)`** / **`get_categories_bulk(..., concurrency=5)`**
-  → Kategorie-IDs je Produkt (`POST /api/search/product`, Filter `productNumber`).
+- **`get_product_info(product_number)`** / **`get_product_infos_bulk(..., concurrency=5)`**
+  → `SwProductInfo` je Produkt (`POST /api/search/product`, Filter `productNumber`,
+  `associations: {categories, properties}`). Liefert Kategorie-IDs **und** die
+  Felder für den `ProductName` (`manufacturerNumber` + Farbe). Nicht gefundene
+  Produkte fehlen im Bulk-Ergebnis (Aufrufer behält dann die Plenty-Werte).
 - **`get_order(order_number)`** → `SwOrder | None`. `POST /api/search/order` mit
   LineItems + Produkt-Properties (siehe Logik-Doku Abschnitt 3). Fehler werden
   **geworfen** (das C#-Original verschluckte sie).
@@ -292,6 +298,9 @@ Reine Funktionen (API-entkoppelt, gut testbar):
   überschreibt nur bei vorhandenem Wert.
 - **`assign_water_connection(order, sw_order)`** → setzt `festwasser` aus der
   Property-Group „Wasseranschluss" (`name` = ja/nein).
+- **`product_display_name(info, *, fallback)`** → DHL-`ProductName` aus
+  `manufacturerNumber` + Farbe (`COLOR_GROUP_ID`). Nur wenn **beide** vorhanden
+  sind, wird kombiniert; fehlt eines, bleibt der `fallback` (Plenty-Name).
 - **`require_service_former_parent_ids(orders)`** → `FormerParentResult`; skippt
   Aufträge, deren echte Services kein `former_parent_id` haben.
 
@@ -331,7 +340,8 @@ Die 11 Schritte siehe Abschnitt 2. Besonderheiten:
 - **Robustheit:** ein fehlschlagender Tracking-Push bricht den Lauf nicht ab;
   ein Mail-Fehler ebenfalls nicht.
 
-Helper: `_enrich_from_shopware_order`, `_enrich_categories`, `_maybe_send_report`.
+Helper: `_enrich_from_shopware_order`, `_enrich_from_shopware_product`
+(Kategorien + `ProductName`), `_maybe_send_report`.
 
 ---
 

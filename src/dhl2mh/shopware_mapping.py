@@ -10,8 +10,15 @@ productNumber).
 from typing import NamedTuple
 
 from dhl2mh.bundles import is_service
-from dhl2mh.mapping import WATER_CONNECTION_GROUP_ID
-from dhl2mh.models import OrderItem, PlentyOrder, SkippedOrder, SwOrder, SwProduct
+from dhl2mh.mapping import COLOR_GROUP_ID, WATER_CONNECTION_GROUP_ID
+from dhl2mh.models import (
+    OrderItem,
+    PlentyOrder,
+    SkippedOrder,
+    SwOrder,
+    SwProduct,
+    SwProductInfo,
+)
 
 
 def assign_former_parent_ids(order: PlentyOrder, sw_order: SwOrder) -> int:
@@ -54,6 +61,19 @@ def assign_water_connection(order: PlentyOrder, sw_order: SwOrder) -> int:
             item.festwasser = flag
             matched += 1
     return matched
+
+
+def product_display_name(info: SwProductInfo, *, fallback: str | None) -> str | None:
+    """DHL ProductName from the Shopware product: ``manufacturerNumber`` + color.
+
+    Both parts must be present to build the combined name; if either is missing,
+    the ``fallback`` (the Plenty order_item_name) is kept unchanged.
+    """
+    manufacturer = (info.manufacturer_number or "").strip()
+    color = (info.color(COLOR_GROUP_ID) or "").strip()
+    if manufacturer and color:
+        return f"{manufacturer} {color}"
+    return fallback
 
 
 def _water_connection_flag(product: SwProduct) -> bool | None:

@@ -25,6 +25,7 @@ from dhl2mh.service_resolver import resolve_orders
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
     assign_water_connection,
+    product_display_name,
     require_service_former_parent_ids,
 )
 from dhl2mh.xml_builder import OrderXmlBuilder
@@ -98,8 +99,10 @@ async def run_pipeline(
                 skipped=len(fp.skipped) + len(filtered.skipped),
             )
 
-        # 6. Shopware categories (parallel)
-        await _enrich_categories(filtered.passed, shopware, concurrency=category_concurrency)
+        # 6. Shopware product enrichment (parallel): categories + ProductName
+        await _enrich_from_shopware_product(
+            filtered.passed, shopware, concurrency=category_concurrency
+        )
 
         # 7. Resolve services (MatchCodes, SWG auto-add, VPR auto-add)
         resolved = resolve_orders(filtered.passed)
@@ -223,26 +226,36 @@ def _log_skipped(stage: str, skipped: list[SkippedOrder]) -> None:
         )
 
 
-async def _enrich_categories(
+async def _enrich_from_shopware_product(
     orders: list[PlentyOrder],
     shopware: ShopwareClient,
     *,
     concurrency: int,
 ) -> None:
-    article_ids = {
-        item.id
+    """Enrich each article from its Shopware product: categories + ProductName.
+
+    Categories feed the Herde/IS decision in the resolver; the name is rebuilt
+    from manufacturerNumber + color, falling back to the Plenty order_item_name
+    when either is missing (see ``product_display_name``). Articles not found in
+    Shopware keep their Plenty-seeded values.
+    """
+    articles = [
+        item
         for o in orders
         for item in o.order_items
         if item.stock_limitation in STOCK_LIMITATION_ARTICLE
-    }
-    if not article_ids:
+    ]
+    if not articles:
         return
-    log.info("pipeline.enriching_categories", articles=len(article_ids))
-    cats = await shopware.get_categories_bulk(article_ids, concurrency=concurrency)
-    for o in orders:
-        for item in o.order_items:
-            if item.stock_limitation in STOCK_LIMITATION_ARTICLE:
-                item.categories = cats.get(str(item.id), [])
+    article_ids = {item.id for item in articles}
+    log.info("pipeline.enriching_products", articles=len(article_ids))
+    infos = await shopware.get_product_infos_bulk(article_ids, concurrency=concurrency)
+    for item in articles:
+        info = infos.get(str(item.id))
+        if info is None:
+            continue
+        item.categories = info.category_ids
+        item.name = product_display_name(info, fallback=item.name)
 
 
 async def _enrich_from_shopware_order(

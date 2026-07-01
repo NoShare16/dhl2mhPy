@@ -1,4 +1,4 @@
-"""Shopware 6 Admin API client: OAuth client_credentials + product categories."""
+"""Shopware 6 Admin API client: OAuth client_credentials + product/order reads."""
 
 import asyncio
 import time
@@ -10,7 +10,7 @@ import httpx
 import structlog
 
 from dhl2mh.config import Settings
-from dhl2mh.models import SwOrder
+from dhl2mh.models import SwOrder, SwProductInfo
 
 log = structlog.get_logger()
 
@@ -117,12 +117,17 @@ class ShopwareClient:
 
     # ── reads ───────────────────────────────────────────────────────────────
 
-    async def get_categories(self, product_number: str | int) -> list[str]:
-        """Category IDs for a single product (by productNumber). Empty list if not found."""
+    async def get_product_info(self, product_number: str | int) -> SwProductInfo | None:
+        """Fetch a single product (by productNumber) with categories + properties.
+
+        Returns ``None`` if no product matches. Carries the category ids (for the
+        Herde/IS decision) as well as the manufacturerNumber + color property the
+        DHL ProductName is built from.
+        """
         pn = str(product_number)
         body = {
             "filter": [{"type": "equals", "field": "productNumber", "value": pn}],
-            "associations": {"categories": {}},
+            "associations": {"categories": {}, "properties": {}},
         }
         resp = await self._authed_post(self.SEARCH_PRODUCT_PATH, json=body)
         if not resp.is_success:
@@ -132,8 +137,8 @@ class ShopwareClient:
             )
         data = resp.json().get("data") or []
         if not data:
-            return []
-        return [str(cid) for cid in (data[0].get("categoryIds") or [])]
+            return None
+        return SwProductInfo.model_validate(data[0])
 
     async def get_order(self, order_number: str | int) -> SwOrder | None:
         """Fetch a single order by orderNumber with its line items + products.
@@ -169,23 +174,24 @@ class ShopwareClient:
             return None
         return SwOrder.model_validate(data[0])
 
-    async def get_categories_bulk(
+    async def get_product_infos_bulk(
         self,
         product_numbers: Iterable[str | int],
         *,
         concurrency: int = 5,
-    ) -> dict[str, list[str]]:
-        """Fetch categories for many products in parallel.
+    ) -> dict[str, SwProductInfo]:
+        """Fetch product info for many products in parallel.
 
-        Returns {product_number_as_str: [category_ids]}. Bounded by ``concurrency``
-        to avoid hammering Shopware (default 5 in-flight at a time).
+        Returns {product_number_as_str: SwProductInfo}; products not found in
+        Shopware are omitted (the caller then keeps the Plenty-seeded values).
+        Bounded by ``concurrency`` to avoid hammering Shopware (default 5 in-flight).
         """
         sem = asyncio.Semaphore(concurrency)
         pns = [str(pn) for pn in product_numbers]
 
-        async def fetch_one(pn: str) -> tuple[str, list[str]]:
+        async def fetch_one(pn: str) -> tuple[str, SwProductInfo | None]:
             async with sem:
-                return pn, await self.get_categories(pn)
+                return pn, await self.get_product_info(pn)
 
         results = await asyncio.gather(*(fetch_one(pn) for pn in pns))
-        return dict(results)
+        return {pn: info for pn, info in results if info is not None}
