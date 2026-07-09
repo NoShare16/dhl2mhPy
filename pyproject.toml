@@ -19,11 +19,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+web = [
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",
     "respx>=0.21",
     "ruff>=0.5",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
 ]
 
 [project.scripts]
@@ -42,3 +48,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# web.py embeds a self-contained HTML/JS page as a string literal; keep those
+# markup lines readable rather than wrapping them to satisfy the line length.
+"src/dhl2mh/web.py" = ["E501"]

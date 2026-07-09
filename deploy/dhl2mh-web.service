@@ -1,0 +1,24 @@
+[Unit]
+Description=dhl2mh manueller Web-Trigger (FastAPI/uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# An den tatsächlichen Projektpfad anpassen (siehe README).
+WorkingDirectory=/var/www/vhosts/moebel-staude.de/dhl2mh.moebel-staude.de/private/dhl2mh
+
+# Gleiche Umgebung wie der Cron-Lauf: prod = echte DHL-Labels + Plenty-Writeback.
+Environment=APP_ENV=prod
+
+# Nur auf localhost lauschen — erreichbar ausschließlich über den Plesk-Reverse-Proxy.
+ExecStart=/var/www/vhosts/moebel-staude.de/dhl2mh.moebel-staude.de/private/dhl2mh/.venv/bin/uvicorn dhl2mh.web:app --host 127.0.0.1 --port 8095
+
+Restart=on-failure
+RestartSec=5
+
+# Als der User laufen lassen, dem das Projektverzeichnis / die .env gehört.
+# User=
+# Group=
+
+[Install]
+WantedBy=multi-user.target

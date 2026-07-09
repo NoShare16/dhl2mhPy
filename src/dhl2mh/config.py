@@ -44,6 +44,20 @@ class SmtpSettings(BaseModel):
     from_name: str = "DHL Label Service"
 
 
+class WebSettings(BaseModel):
+    """Credentials for the manual-trigger web UI (optional, cron-only installs
+    can leave these empty). ``secret_key`` signs the login session cookie; when
+    empty it falls back to the password so a set password is always enough."""
+
+    username: str = ""
+    password: str = ""
+    secret_key: str = ""
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.username and self.password)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -59,6 +73,7 @@ class Settings(BaseSettings):
     shopware: ShopwareSettings
     dhl: DhlSettings
     smtp: SmtpSettings
+    web: WebSettings = WebSettings()
 
     @property
     def dhl_username(self) -> str:
