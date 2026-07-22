@@ -15,6 +15,7 @@ from dhl2mh.mapping import (
     SERVICE_EAN,
     SERVICE_INSTALL,
     SERVICE_ISEK,
+    SERVICE_ISEK_KG,
     SERVICE_KF_EAN,
     SERVICE_LA,
     SERVICE_SVG,
@@ -36,6 +37,7 @@ from dhl2mh.mapping import (
         (SERVICE_AWS, ["AWS"]),
         (SERVICE_DPW, ["DPW"]),
         (SERVICE_ISEK, ["ISEK"]),
+        (SERVICE_ISEK_KG, ["ISEK"]),
         (SERVICE_EAN, ["E-AN"]),
         (SERVICE_SVG, ["SVG"]),
         (SERVICE_LA, ["LA"]),
@@ -93,14 +95,15 @@ def test_unknown_service_id_raises():
         map_to_match_codes(999999, [])
 
 
-def test_whitelist_contains_all_13_known_service_ids():
+def test_whitelist_contains_all_14_known_service_ids():
     expected = {
         SERVICE_AG, SERVICE_AWS_DPW, SERVICE_AWS, SERVICE_DPW,
-        SERVICE_ISEK, SERVICE_KF_EAN, SERVICE_EAN, SERVICE_SVG,
-        SERVICE_LA, SERVICE_DI, SERVICE_INSTALL, SERVICE_SWG, SERVICE_VPR,
+        SERVICE_ISEK, SERVICE_ISEK_KG, SERVICE_KF_EAN, SERVICE_EAN,
+        SERVICE_SVG, SERVICE_LA, SERVICE_DI, SERVICE_INSTALL,
+        SERVICE_SWG, SERVICE_VPR,
     }
     assert SERVICE_WHITELIST == expected
-    assert len(SERVICE_WHITELIST) == 13
+    assert len(SERVICE_WHITELIST) == 14
     for sid in SERVICE_WHITELIST:
         map_to_match_codes(sid, [])  # no orphans
 

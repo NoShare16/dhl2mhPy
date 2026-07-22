@@ -19,6 +19,7 @@ SERVICE_AWS_DPW: Final = 783117     # → AWS + DPW
 SERVICE_AWS: Final = 783143         # → AWS
 SERVICE_DPW: Final = 783148         # → DPW
 SERVICE_ISEK: Final = 783149        # → ISEK
+SERVICE_ISEK_KG: Final = 783172     # → ISEK ("Installationsservice - KG")
 SERVICE_KF_EAN: Final = 783141      # → KF + E-AN
 SERVICE_EAN: Final = 783140         # → E-AN
 SERVICE_SVG: Final = 783146         # → SVG
@@ -35,6 +36,7 @@ SERVICE_WHITELIST: Final[frozenset[int]] = frozenset(
         SERVICE_AWS,
         SERVICE_DPW,
         SERVICE_ISEK,
+        SERVICE_ISEK_KG,
         SERVICE_KF_EAN,
         SERVICE_EAN,
         SERVICE_SVG,
@@ -45,6 +47,15 @@ SERVICE_WHITELIST: Final[frozenset[int]] = frozenset(
         SERVICE_VPR,
     }
 )
+
+# ── Plenty variation id ↔ Shopware productNumber ───────────────────────────
+# A Plenty position normally matches its Shopware line item 1:1 by
+# ``productNumber == str(variation id)``. The "Installationsservice - KG" breaks
+# that: Shopware sends productNumber 783149, Plenty books variation 783172. The
+# alias is only consulted when no line item carries the variation id itself.
+SHOPWARE_PRODUCT_NUMBER_ALIASES: Final[dict[int, str]] = {
+    SERVICE_ISEK_KG: str(SERVICE_ISEK),
+}
 
 # ── Auto-attach rules ──────────────────────────────────────────────────────
 HEAVY_LIFT_SERVICE_ID: Final = SERVICE_SWG
@@ -96,6 +107,7 @@ _STATIC_MATCH_CODES: Final[dict[int, tuple[str, ...]]] = {
     SERVICE_AWS: ("AWS",),
     SERVICE_DPW: ("DPW",),
     SERVICE_ISEK: ("ISEK",),
+    SERVICE_ISEK_KG: ("ISEK",),
     SERVICE_KF_EAN: ("KF", "E-AN"),
     SERVICE_EAN: ("E-AN",),
     SERVICE_SVG: ("SVG",),

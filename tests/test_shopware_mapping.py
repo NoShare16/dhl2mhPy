@@ -1,8 +1,9 @@
 import json
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
-from dhl2mh.mapping import COLOR_GROUP_ID, SERVICE_AG
+from dhl2mh.mapping import COLOR_GROUP_ID, SERVICE_AG, SERVICE_ISEK, SERVICE_ISEK_KG
 from dhl2mh.models import (
     OrderItem,
     PlentyOrder,
@@ -48,18 +49,18 @@ def test_assigns_former_parent_id_to_matching_positions():
         OrderItem(id=783140),  # service: Installationsservice
     )
 
-    matched = assign_former_parent_ids(order, _sw_order())
+    result = assign_former_parent_ids(order, _sw_order())
 
-    assert matched == 3
+    assert (result.matched, result.split) == (3, 0)
     assert all(it.former_parent_id == FORMER_PARENT for it in order.order_items)
 
 
 def test_unmatched_positions_keep_none():
     order = _order(OrderItem(id=771883), OrderItem(id=999999))
 
-    matched = assign_former_parent_ids(order, _sw_order())
+    result = assign_former_parent_ids(order, _sw_order())
 
-    assert matched == 1
+    assert result.matched == 1
     by_id = {it.id: it for it in order.order_items}
     assert by_id[771883].former_parent_id == FORMER_PARENT
     assert by_id[999999].former_parent_id is None
@@ -81,9 +82,9 @@ def test_no_line_items_assigns_nothing():
     order = _order(OrderItem(id=771883))
     empty = SwOrder(order_number="MK89643", line_items=[])
 
-    matched = assign_former_parent_ids(order, empty)
+    result = assign_former_parent_ids(order, empty)
 
-    assert matched == 0
+    assert (result.matched, result.split) == (0, 0)
     assert order.order_items[0].former_parent_id is None
 
 
@@ -115,6 +116,158 @@ def test_empty_shopware_value_does_not_clear_plenty_seed():
     order = _order(OrderItem(id=771883, former_parent_id="plenty-1234"))
     assign_former_parent_ids(order, _sw_with("771883", ""))
     assert order.order_items[0].former_parent_id == "plenty-1234"
+
+
+# ── one service for two articles → one Plenty position, two parents ─────────
+#
+# Modelled on order 238574 / MK90156: one Altgerätemitnahme per fridge arrives as
+# two Shopware line items of quantity 1 sharing productNumber 783116, which
+# Plenty books as a single position of quantity 2.
+
+PARENT_A = "019f4115c9a97017b6334697aa80ecfe"
+PARENT_B = "019f4115c9a97017b6334697ad6e3e1b"
+
+
+def _sw_line(product_number: str, former_parent_id: str, quantity: int = 1):
+    return SwOrderLineItem(
+        type="dvsn-product-option",
+        quantity=Decimal(quantity),
+        payload=SwLineItemPayload(
+            product_number=product_number,
+            dvsn_product_option_former_parent_id=former_parent_id,
+        ),
+    )
+
+
+def _two_fridge_order() -> SwOrder:
+    return SwOrder(
+        order_number="MK90156",
+        line_items=[
+            _sw_line("784632", PARENT_A),  # Kühlschrank
+            _sw_line("783116", PARENT_A),  # Altgerätemitnahme
+            _sw_line("784642", PARENT_B),  # Gefrierschrank
+            _sw_line("783116", PARENT_B),  # Altgerätemitnahme
+        ],
+    )
+
+
+def test_service_for_two_articles_is_split_per_parent():
+    order = _order(
+        OrderItem(id=784632, stock_limitation=1),
+        OrderItem(id=784642, stock_limitation=1),
+        OrderItem(id=783116, stock_limitation=2, quantity=Decimal(2), packages=Decimal(2)),
+    )
+
+    result = assign_former_parent_ids(order, _two_fridge_order())
+
+    assert (result.matched, result.split) == (3, 1)
+    services = [it for it in order.order_items if it.id == 783116]
+    assert len(services) == 2
+    assert [s.former_parent_id for s in services] == [PARENT_A, PARENT_B]
+    # every article keeps its own service — this is the bug that shipped orders
+    # with one article silently missing its Altgerätemitnahme
+    assert {it.former_parent_id for it in order.order_items} == {PARENT_A, PARENT_B}
+
+
+def test_split_positions_take_their_quantity_from_shopware():
+    order = _order(
+        OrderItem(id=783116, stock_limitation=2, quantity=Decimal(3), packages=Decimal(3))
+    )
+    sw = SwOrder(
+        order_number="X",
+        line_items=[_sw_line("783116", PARENT_A, 1), _sw_line("783116", PARENT_B, 2)],
+    )
+
+    assign_former_parent_ids(order, sw)
+
+    assert [(it.former_parent_id, it.quantity, it.packages) for it in order.order_items] == [
+        (PARENT_A, Decimal(1), Decimal(1)),
+        (PARENT_B, Decimal(2), Decimal(2)),
+    ]
+
+
+def test_repeated_line_items_with_one_parent_are_not_split():
+    """Two line items, same parent → still a single position (quantity untouched)."""
+    order = _order(OrderItem(id=783116, stock_limitation=2, quantity=Decimal(2)))
+    sw = SwOrder(
+        order_number="X",
+        line_items=[_sw_line("783116", PARENT_A), _sw_line("783116", PARENT_A)],
+    )
+
+    result = assign_former_parent_ids(order, sw)
+
+    assert (result.matched, result.split) == (1, 0)
+    assert len(order.order_items) == 1
+    assert order.order_items[0].quantity == Decimal(2)
+
+
+def test_split_positions_do_not_share_mutable_state():
+    order = _order(OrderItem(id=783116, stock_limitation=2, quantity=Decimal(2)))
+    sw = SwOrder(
+        order_number="X",
+        line_items=[_sw_line("783116", PARENT_A), _sw_line("783116", PARENT_B)],
+    )
+
+    assign_former_parent_ids(order, sw)
+    first, second = order.order_items
+    first.service_match_codes.append("AG")
+
+    assert second.service_match_codes == []
+
+
+def test_splitting_preserves_position_order():
+    """A split position stays where it was, so the XML item order is stable."""
+    order = _order(
+        OrderItem(id=784632, stock_limitation=1),
+        OrderItem(id=783116, stock_limitation=2, quantity=Decimal(2)),
+        OrderItem(id=784642, stock_limitation=1),
+    )
+
+    assign_former_parent_ids(order, _two_fridge_order())
+
+    assert [it.id for it in order.order_items] == [784632, 783116, 783116, 784642]
+
+
+# ── Plenty variation id ≠ Shopware productNumber (Installationsservice KG) ──
+
+
+def test_isek_kg_matches_via_shopware_product_number_alias():
+    """Plenty books variation 783172, Shopware sends productNumber 783149."""
+    order = _order(
+        OrderItem(id=784632, stock_limitation=1),
+        OrderItem(id=SERVICE_ISEK_KG, stock_limitation=2, quantity=Decimal(2)),
+    )
+    sw = SwOrder(
+        order_number="X",
+        line_items=[
+            _sw_line("784632", PARENT_A),
+            _sw_line(str(SERVICE_ISEK), PARENT_A),
+            _sw_line(str(SERVICE_ISEK), PARENT_B),
+        ],
+    )
+
+    result = assign_former_parent_ids(order, sw)
+
+    assert result.split == 1
+    services = [it for it in order.order_items if it.id == SERVICE_ISEK_KG]
+    assert [s.former_parent_id for s in services] == [PARENT_A, PARENT_B]
+
+
+def test_exact_product_number_wins_over_alias():
+    """A line item carrying 783172 itself must not be overridden by the alias."""
+    order = _order(OrderItem(id=SERVICE_ISEK_KG, stock_limitation=2))
+    sw = SwOrder(
+        order_number="X",
+        line_items=[
+            _sw_line(str(SERVICE_ISEK_KG), PARENT_A),
+            _sw_line(str(SERVICE_ISEK), PARENT_B),
+        ],
+    )
+
+    assign_former_parent_ids(order, sw)
+
+    assert len(order.order_items) == 1
+    assert order.order_items[0].former_parent_id == PARENT_A
 
 
 # ── water connection (Festwasser) extraction ────────────────────────────────
