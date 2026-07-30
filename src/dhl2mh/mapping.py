@@ -59,7 +59,7 @@ SHOPWARE_PRODUCT_NUMBER_ALIASES: Final[dict[int, str]] = {
 
 # ── Auto-attach rules ──────────────────────────────────────────────────────
 HEAVY_LIFT_SERVICE_ID: Final = SERVICE_SWG
-HEAVY_LIFT_THRESHOLD_KG: Final = Decimal("120")
+HEAVY_LIFT_THRESHOLD_KG: Final = Decimal("179")
 HEAVY_LIFT_MATCH_CODE: Final = "SWG"
 
 VPR_SERVICE_ID: Final = SERVICE_VPR
