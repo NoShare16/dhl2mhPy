@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from dhl2mh.mapping import SERVICE_AG
+from dhl2mh.mapping import COLOR_GROUP_ID, SERVICE_AG
 from dhl2mh.models import (
     OrderItem,
     PlentyOrder,
@@ -10,11 +10,13 @@ from dhl2mh.models import (
     SwOrder,
     SwOrderLineItem,
     SwProduct,
+    SwProductInfo,
     SwPropertyOption,
 )
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
     assign_water_connection,
+    product_display_name,
     require_service_former_parent_ids,
 )
 
@@ -218,3 +220,35 @@ def test_discount_position_without_former_parent_does_not_skip():
 
     assert result.passed == [order]
     assert result.skipped == []
+
+
+# ── product_display_name: ProductName from manufacturerNumber + color ────────
+
+
+def _product_info(*, manufacturer=None, color=None, color_group=COLOR_GROUP_ID):
+    props = []
+    if color is not None:
+        props.append(SwPropertyOption(name=color, group_id=color_group))
+    return SwProductInfo(manufacturer_number=manufacturer, properties=props)
+
+
+def test_product_name_combines_manufacturer_and_color():
+    info = _product_info(manufacturer="HE517ABW0", color="Schwarz")
+    assert product_display_name(info, fallback="Plenty-Name") == "HE517ABW0 Schwarz"
+
+
+def test_product_name_falls_back_when_manufacturer_missing():
+    info = _product_info(manufacturer=None, color="Schwarz")
+    assert product_display_name(info, fallback="Plenty-Name") == "Plenty-Name"
+
+
+def test_product_name_falls_back_when_color_missing():
+    info = _product_info(manufacturer="HE517ABW0", color=None)
+    assert product_display_name(info, fallback="Plenty-Name") == "Plenty-Name"
+
+
+def test_product_name_ignores_color_from_other_group():
+    # A property in a different group must not be treated as the color.
+    info = _product_info(manufacturer="HE517ABW0", color="Elektro", color_group="other")
+    assert product_display_name(info, fallback="Plenty-Name") == "Plenty-Name"
+    assert info.color(COLOR_GROUP_ID) is None

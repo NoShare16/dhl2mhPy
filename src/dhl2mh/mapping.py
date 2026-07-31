@@ -71,6 +71,11 @@ HERDE_CATEGORY_IDS: Final[frozenset[str]] = frozenset(
 WATER_CONNECTION_GROUP_ID: Final = "8910dbddf00a4d94998289840033982d"
 WATER_CONNECTION_MATCH_CODE: Final = "AWS"
 
+# ── Shopware property group "Farbe" — the color option name is combined with the
+# product's manufacturerNumber to form the DHL ProductName (see
+# shopware_mapping.product_display_name).
+COLOR_GROUP_ID: Final = "b7c2c23b73454356bec99f10042600eb"
+
 # Plenty StockLimitation classification
 STOCK_LIMITATION_ARTICLE: Final = (0, 1)
 STOCK_LIMITATION_SERVICE: Final = 2
