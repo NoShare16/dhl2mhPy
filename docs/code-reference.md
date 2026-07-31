@@ -21,10 +21,11 @@ siehe ergänzend [`logik-dokumentation.md`](./logik-dokumentation.md).
 13. [`xml_builder.py` — DHL-XML](#13-xml_builderpy--dhl-xml)
 14. [`pipeline.py` — Orchestrierung](#14-pipelinepy--orchestrierung)
 15. [`cli.py` — Kommandozeile](#15-clipy--kommandozeile)
-16. [`notifications.py` — Report-Mail](#16-notificationspy--report-mail)
-17. [`logging_setup.py` — Logging](#17-logging_setuppy--logging)
-18. [Tests](#18-tests)
-19. [Betrieb & Ausführung](#19-betrieb--ausführung)
+16. [`web.py` — Manueller Web-Trigger](#16-webpy--manueller-web-trigger)
+17. [`notifications.py` — Report-Mail](#17-notificationspy--report-mail)
+18. [`logging_setup.py` — Logging](#18-logging_setuppy--logging)
+19. [Tests](#19-tests)
+20. [Betrieb & Ausführung](#20-betrieb--ausführung)
 
 ---
 
@@ -38,9 +39,10 @@ Aufruf **einen** Durchlauf aus (für Cron gedacht):
 > warten → Tracking-Nummer nach Plenty zurückschreiben → Report-Mail für
 > übersprungene Aufträge.
 
-**Tech-Stack:** Python 3.14, `httpx` (async HTTP), `pydantic` / `pydantic-settings`
+**Tech-Stack:** Python ≥ 3.12, `httpx` (async HTTP), `pydantic` / `pydantic-settings`
 (Modelle & Config), `typer` (CLI), `lxml` (XML), `structlog` (Logging),
-`pytest` / `respx` (Tests).
+`pytest` / `respx` (Tests). Optional (`.[web]`): `fastapi` + `uvicorn` für den
+manuellen Web-Trigger.
 
 **Einstiegspunkte:** `dhl2mh` (Konsolen-Script) bzw. `python -m dhl2mh` → `cli.py`.
 
@@ -84,8 +86,9 @@ src/dhl2mh/
 ├── mapping.py           # Service-IDs, Whitelist, MatchCodes
 ├── filter.py            # Pass/Skip-Prädikate
 ├── service_resolver.py  # Services → MatchCodes, SWG/VPR, Gewicht/Volumen
-├── shopware_mapping.py  # former_parent, Festwasser, Pflichtfeld-Skip
+├── shopware_mapping.py  # former_parent, Festwasser, ProductName, Pflichtfeld-Skip
 ├── xml_builder.py       # DHL-DeliverIT-XML
+├── web.py               # optionaler manueller Web-Trigger (FastAPI)
 ├── notifications.py     # SMTP-Report-Mail
 ├── logging_setup.py     # structlog-Konfiguration
 └── clients/
@@ -94,6 +97,7 @@ src/dhl2mh/
     └── dhl.py
 tests/                   # pytest-Suite (+ fixtures/)
 docs/                    # diese Dokumentation
+deploy/                  # dhl2mh-web.service (systemd-Unit für den Web-Trigger)
 ```
 
 ---
@@ -104,11 +108,13 @@ Pydantic-Settings, geladen aus `.env` (verschachtelt mit Trenner `__`).
 
 - **`Settings(BaseSettings)`** — Top-Level:
   `app_env` (`dev`|`prod`), `report_recipient_email`, sowie die verschachtelten
-  Blöcke `plenty`, `shopware`, `dhl`, `smtp`.
+  Blöcke `plenty`, `shopware`, `dhl`, `smtp`, `web`.
 - **Nested-Modelle:** `PlentySettings` (username/password/base_url),
   `ShopwareSettings` (client_id/client_secret/base_url),
   `DhlSettings` (uat_/prod_ username/password/base_url, `label_wait_seconds=180`,
-  `uat_/prod_sender_partner_id` = `1`/`3`), `SmtpSettings`.
+  `uat_/prod_sender_partner_id` = `1`/`3`), `SmtpSettings`,
+  `WebSettings` (username/password/secret_key — leer = Web-Trigger deaktiviert,
+  siehe Abschnitt 16).
 - **Umgebungs-Properties:** `dhl_username`, `dhl_password`, `dhl_base_url`,
   `is_production` — wählen abhängig von `app_env` zwischen UAT und Prod.
 - **`get_settings()`** — gecachter Singleton (liest `.env` beim ersten Aufruf).
@@ -140,7 +146,9 @@ Drei Gruppen. Alle API-Modelle erben von `_ApiModel`
 - `SwProductInfo` — flaches `/api/search/product`-Ergebnis: `product_number`,
   `manufacturer_number`, `category_ids`, `properties`; `color(group_id)` liefert
   den Namen der Farb-Property. Basis für Kategorien **und** den DHL-`ProductName`.
-- `SwOrderLineItem` — `type`, `label`, `referenced_id`, `product_id`, `payload`, `product`
+- `SwOrderLineItem` — `type`, `label`, `referenced_id`, `product_id`, `quantity`,
+  `payload`, `product`. `quantity` ist die Menge **dieses** Line-Items — beim
+  1:n-Split (Abschnitt 12) wird sie zur Menge der aufgeteilten Plenty-Position.
 - `SwOrder` — `order_number`, `line_items`
 
 ### 5.3 Domain-Modelle (was die Pipeline nutzt)
@@ -151,6 +159,7 @@ Drei Gruppen. Alle API-Modelle erben von `_ApiModel`
   `festwasser`, sowie die im Filter/Resolver befüllten Felder
   `service_ids`, `service_match_codes`, `categories`, `weight_kg`, `volume_cbm`.
   Ein `model_validator` setzt `former_parent_id` per Default auf `bundle_id`.
+  `quantity`/`packages` können beim 1:n-Split überschrieben werden (Abschnitt 12).
 - **`PlentyOrder`** — Auftrag (`id`, `status_id`, `type_id`, `order_date`,
   `addresses`, `order_items`, `package_number`, `shopware_id`).
 - **`SkippedOrder`** — Eintrag für die Report-Mail (`order_id`, `reason`, …).
@@ -241,9 +250,13 @@ Geteilt von Filter und Resolver.
 ## 9. `mapping.py` — Konstanten & MatchCodes
 
 - **Service-IDs** (`SERVICE_AG`, `SERVICE_INSTALL=783139`, `SERVICE_SWG`, …) und
-  **`SERVICE_WHITELIST`** (13 IDs).
-- **Auto-Attach:** `HEAVY_LIFT_THRESHOLD_KG=120` (→ `SWG`),
+  **`SERVICE_WHITELIST`** (14 IDs).
+- **Auto-Attach:** `HEAVY_LIFT_THRESHOLD_KG=179` (→ `SWG`),
   `VPR_TRIGGER_MATCH_CODES` (`AWS`, `ISEK`, `KF`, `E-AN`, `IS` → `VPR`).
+- **`SHOPWARE_PRODUCT_NUMBER_ALIASES`** — Plenty-Variationsnummer → abweichende
+  Shopware-`productNumber` (`783172` „Installationsservice – KG" → `783149`).
+  Wird nur konsultiert, wenn kein Line-Item die Variationsnummer selbst trägt;
+  siehe Logik-Doku Abschnitt 3.2.
 - **`HERDE_CATEGORY_IDS`** — Shopware-Kategorien „Herde" → `E-AN`.
 - **`WATER_CONNECTION_GROUP_ID`** / **`WATER_CONNECTION_MATCH_CODE="AWS"`**.
 - **`STOCK_LIMITATION_ARTICLE=(0,1)`**, **`STOCK_LIMITATION_SERVICE=2`**.
@@ -279,7 +292,7 @@ Reine Prädikate, keine Mutation. Nutzt `group_by_bundle` / `split_articles_and_
 Pro Bundle (genau 1 Artikel, garantiert durch den Filter):
 
 - sammelt Service-IDs der Bundle-Services,
-- fügt **SWG** hinzu, wenn Gewicht > 120 kg,
+- fügt **SWG** hinzu, wenn Gewicht > 179 kg,
 - mappt jede ID via `map_to_match_codes(..., festwasser=article.festwasser)`,
 - fügt **VPR** hinzu, wenn ein Trigger-Code vorhanden ist,
 - setzt `service_ids`, `service_match_codes`, `weight_kg` (g→kg),
@@ -293,9 +306,15 @@ Unbekannte Service-IDs → Auftrag wird geskippt.
 
 Reine Funktionen (API-entkoppelt, gut testbar):
 
-- **`assign_former_parent_ids(order, sw_order)`** → setzt `former_parent_id` aus
-  `dvsnProductOptionFormerParentId`, Match über `productNumber == str(id)`,
-  überschreibt nur bei vorhandenem Wert.
+- **`assign_former_parent_ids(order, sw_order)`** → `FormerParentAssignment(matched, split)`;
+  setzt `former_parent_id` aus `dvsnProductOptionFormerParentId`, Match über
+  `productNumber == str(id)` (sonst über `SHOPWARE_PRODUCT_NUMBER_ALIASES`),
+  überschreibt nur bei vorhandenem Wert. Die Zuordnung ist **1:n**: eine
+  Plenty-Position ist das Aggregat aller Line-Items mit ihrer `productNumber`,
+  deshalb wird eine Position mit **mehreren** Parents in je eine Position pro
+  `former_parent_id` **gesplittet** (`quantity`/`packages` aus den
+  Shopware-Mengen). `matched`/`split` landen als `former_parent_matched` /
+  `former_parent_split` im Log. Details: Logik-Doku Abschnitt 3.1.
 - **`assign_water_connection(order, sw_order)`** → setzt `festwasser` aus der
   Property-Group „Wasseranschluss" (`name` = ja/nein).
 - **`product_display_name(info, *, fallback)`** → DHL-`ProductName` aus
@@ -359,7 +378,37 @@ dhl2mh run [--items-per-page N] [--concurrency N] [--log-level LVL] [--dry-run]
 
 ---
 
-## 16. `notifications.py` — Report-Mail
+## 16. `web.py` — Manueller Web-Trigger
+
+**Optional** — nur aktiv, wenn `WEB__USERNAME` und `WEB__PASSWORD` gesetzt sind
+(leer = reiner Cron-Betrieb). Extra `pip install -e ".[web]"` (FastAPI + uvicorn).
+
+Eine passwortgeschützte Ein-Knopf-Seite, die **denselben** Lauf startet wie der
+Cron (`python -m dhl2mh run`) — als **Hintergrundprozess**, nicht in-process.
+Ergebnisse kommen weiterhin per Report-Mail; die Seite zeigt nur den Status.
+
+- **`app`** — `FastAPI(docs_url=None, redoc_url=None)`; die Oberfläche ist eine
+  einzelne HTML-Konstante (`_PAGE`), kein Template-Verzeichnis.
+- **`RunState`** — Single-Slot-State: es ist **genau ein** Lauf gleichzeitig
+  erlaubt. `_start_run()` liefert `False`, wenn schon einer läuft. `_drain()`
+  streamt die Subprozess-Ausgabe in einen Ringpuffer
+  (`OUTPUT_TAIL_LINES = 200`) und hält den Exit-Code fest.
+- **Session:** signiertes Cookie `dhl2mh_session` (HMAC über `WEB__SECRET_KEY`,
+  ersatzweise aus dem Passwort abgeleitet), TTL 8 h, `Secure`-Flag → nur über
+  HTTPS. Credential-Vergleich zeitkonstant (`_credentials_ok`).
+- **Routen:** `GET /` (Seite), `GET /status` (JSON: läuft / letztes Ergebnis),
+  `POST /login`, `POST /logout`, `POST /trigger` (startet den Lauf).
+
+> ⚠️ Der Web-Lauf ist **nicht** mit dem Cron synchronisiert — nur parallele
+> *Web*-Läufe werden verhindert. Unter `APP_ENV=prod` erzeugt jeder Klick einen
+> echten Produktivlauf.
+
+Betrieb via `deploy/dhl2mh-web.service` (systemd, lauscht nur auf
+`127.0.0.1:8095`, davor ein Reverse-Proxy). Setup-Schritte siehe README.
+
+---
+
+## 17. `notifications.py` — Report-Mail
 
 `send_skipped_orders_report(skipped, settings, *, now=None)` — verschickt eine
 deutschsprachige Klartext-Mail (SMTP + STARTTLS + Login) an
@@ -369,7 +418,7 @@ Body listet pro Auftrag ID, Datum, Kunde, Artikelzahl und Skip-Grund
 
 ---
 
-## 17. `logging_setup.py` — Logging
+## 18. `logging_setup.py` — Logging
 
 `setup_logging(level="INFO", *, json=None)` konfiguriert `structlog`.
 `json=None` erkennt automatisch: **Console-Renderer** (farbig) auf einem TTY
@@ -377,7 +426,7 @@ Body listet pro Auftrag ID, Datum, Kunde, Artikelzahl und Skip-Grund
 
 ---
 
-## 18. Tests
+## 19. Tests
 
 `pytest` (async) mit `respx` für HTTP-Mocks; `tests/fixtures/` enthält reale
 Beispiel-Responses. Abdeckung pro Modul:
@@ -392,16 +441,17 @@ Beispiel-Responses. Abdeckung pro Modul:
 | `test_mapping.py` | MatchCodes, Festwasser/AWS |
 | `test_filter.py` | Skip-Regeln |
 | `test_service_resolver.py` | Service-Auflösung, Rabatt-Ignorierung |
-| `test_shopware_mapping.py` | former_parent, Festwasser, Pflichtfeld-Skip |
+| `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, ProductName, Pflichtfeld-Skip |
 | `test_xml_builder.py` | DHL-XML |
 | `test_notifications.py` | Report-Mail |
 | `test_pipeline.py` | End-to-End-Smoke + Dry-Run |
+| `test_web.py` | Web-Trigger: Login, Session, Single-Slot-Lauf |
 
 Ausführen: `python -m pytest -q`.
 
 ---
 
-## 19. Betrieb & Ausführung
+## 20. Betrieb & Ausführung
 
 ```bash
 python -m dhl2mh run               # UAT (APP_ENV=dev), voller Lauf
