@@ -18,3 +18,4 @@ dist/
 # Test fixtures contain real order data (PII) — kept locally, never committed.
 # Restore from history: git show be87cfa~1:tests/fixtures/<file> > tests/fixtures/<file>
 tests/fixtures/*.json
+tests/fixtures/*.xml

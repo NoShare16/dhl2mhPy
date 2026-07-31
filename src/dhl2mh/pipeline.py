@@ -283,13 +283,14 @@ async def _enrich_from_shopware_order(
         if sw_order is None:
             log.warning("pipeline.shopware_order_not_found", shopware_id=order.shopware_id)
             return
-        matched = assign_former_parent_ids(order, sw_order)
+        assignment = assign_former_parent_ids(order, sw_order)
         water = assign_water_connection(order, sw_order)
         log.info(
             "pipeline.shopware_order_matched",
             order_id=order.id,
             shopware_id=order.shopware_id,
-            former_parent_matched=matched,
+            former_parent_matched=assignment.matched,
+            former_parent_split=assignment.split,
             water_connection_matched=water,
         )
 
