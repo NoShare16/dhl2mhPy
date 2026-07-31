@@ -93,6 +93,43 @@ LineItems + Produkt-Properties; `Accept: application/json` → flaches Format).
 {placeholder}
 *(Screenshot: Shopware-LineItem mit `dvsnProductOptionFormerParentId`)*
 
+### 3.1 Dieselbe Serviceleistung für mehrere Artikel (1:n)
+
+Shopware schreibt `dvsnProductOptionFormerParentId` **pro Line-Item**. Wird
+dieselbe Serviceleistung für zwei Artikel bestellt, ergibt das **zwei
+Line-Items** mit gleicher `productNumber`, aber **unterschiedlicher** parentId —
+Plenty aggregiert sie jedoch zu **einer** Position mit `quantity 2`. Die
+Zuordnung ist also **1:n**, nicht 1:1.
+
+Deshalb wird eine Position, deren Line-Items auf **verschiedene** Parents
+zeigen, wieder **aufgeteilt**: eine Position je `former_parent_id`, Menge
+(`quantity`/`packages`) aus den Shopware-Line-Items. Jeder Artikel behält so
+seine eigenen Services.
+
+| Shopware-Line-Items | Plenty-Position | Ergebnis |
+|---|---|---|
+| 1× `783149` → Parent A | `783149`, qty 1 | 1 Position, Parent A |
+| 2× `783149` → Parent A, Parent B | `783149`, qty 2 | **2 Positionen**, je qty 1 |
+
+> Ohne den Split würde das letzte Line-Item gewinnen und **ein Artikel verlöre
+> stillschweigend seine Services** — ohne Skip und ohne Report-Mail.
+
+Bei nur **einem** Parent bleibt das Verhalten unverändert (die Originalposition
+wird lediglich befüllt). Wie viele Positionen gematcht bzw. gesplittet wurden,
+steht im Log unter `pipeline.shopware_order_matched`
+(`former_parent_matched`, `former_parent_split`).
+
+### 3.2 Abweichende Artikelnummern (Alias)
+
+Normalerweise gilt `productNumber == str(Plenty-Variationsnummer)`. Der
+**„Installationsservice – KG"** bricht das: Plenty bucht Variante **`783172`**,
+Shopware sendet `productNumber` **`783149`**. Ohne Zuordnung fände die Position
+keine parentId und der ganze Auftrag würde geskippt (Abschnitt 7).
+
+`SHOPWARE_PRODUCT_NUMBER_ALIASES` bildet solche Fälle ab. Der Alias greift
+**nur dann**, wenn **kein** Line-Item die Variantennummer selbst trägt — ein
+direkter Treffer hat immer Vorrang.
+
 ---
 
 ## 4. Festwasseranschluss
@@ -118,7 +155,7 @@ führt auch **Rabatte/Nachlässe** als solche Positionen (z. B. „2% Rabatt",
 Preis**).
 
 **Regel:** Eine Position ist nur dann ein Service, wenn ihre ID in der
-**`SERVICE_WHITELIST`** (13 IDs, alle `783xxx`) steht.
+**`SERVICE_WHITELIST`** (14 IDs, alle `783xxx`) steht.
 
 - Echte Services → werden aufgelöst und in MatchCodes übersetzt.
 - Andere `stock==2`-Positionen (Rabatte) → werden **überall ignoriert**: weder
@@ -205,7 +242,7 @@ einer ID), `SVG`, `LA`, `DI`, …
 
 **Automatisch angehängt:**
 
-- **`SWG`** (Schwerlast) — wenn das Artikelgewicht **> 120 kg** ist.
+- **`SWG`** (Schwerlast) — wenn das Artikelgewicht **> 179 kg** ist.
 - **`VPR`** — wenn ein Trigger-Code (`AWS`, `ISEK`, `KF`, `E-AN`, `IS`) vorhanden
   ist. (D. h. `AWS` aus Festwasser zieht automatisch `VPR` nach.)
 
