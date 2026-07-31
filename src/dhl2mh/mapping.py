@@ -26,7 +26,7 @@ SERVICE_SVG: Final = 783146         # → SVG
 SERVICE_LA: Final = 783145          # → LA
 SERVICE_DI: Final = 783151          # → DI
 SERVICE_INSTALL: Final = 783139     # → AWS (Festwasser) / E-AN (Herde) / IS (default)
-SERVICE_SWG: Final = 783152         # → SWG (auto-attached when weight > 120 kg)
+SERVICE_SWG: Final = 783152         # → SWG (auto-attached when weight > 179 kg)
 SERVICE_VPR: Final = 783138         # → VPR (auto-attached when triggering codes present)
 
 SERVICE_WHITELIST: Final[frozenset[int]] = frozenset(

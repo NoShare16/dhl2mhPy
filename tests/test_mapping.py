@@ -110,7 +110,7 @@ def test_whitelist_contains_all_14_known_service_ids():
 
 def test_heavy_lift_constants():
     assert HEAVY_LIFT_SERVICE_ID == SERVICE_SWG
-    assert HEAVY_LIFT_THRESHOLD_KG == Decimal("120")
+    assert HEAVY_LIFT_THRESHOLD_KG == Decimal("179")
     assert HEAVY_LIFT_MATCH_CODE == "SWG"
 
 
