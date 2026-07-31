@@ -122,8 +122,8 @@ def test_install_service_uses_article_categories_for_IS_vs_EAN():
 # ── heavy-lift auto-add ────────────────────────────────────────────────────
 
 
-def test_heavy_lift_auto_adds_SWG_when_article_over_120kg():
-    article = _article(weight_g=150_000)  # 150 kg
+def test_heavy_lift_auto_adds_SWG_when_article_over_179kg():
+    article = _article(weight_g=200_000)  # 200 kg
     resolve_order(_order([article]))
 
     assert SERVICE_SWG in article.service_ids
@@ -131,7 +131,7 @@ def test_heavy_lift_auto_adds_SWG_when_article_over_120kg():
 
 
 def test_heavy_lift_not_added_under_threshold():
-    article = _article(weight_g=120_000)  # exactly 120kg → NOT > 120
+    article = _article(weight_g=179_000)  # exactly 179kg → NOT > 179
     resolve_order(_order([article]))
 
     assert SERVICE_SWG not in article.service_ids
