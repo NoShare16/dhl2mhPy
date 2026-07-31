@@ -132,6 +132,33 @@ class SwProduct(_ApiModel):
         return v or []
 
 
+class SwProductInfo(_ApiModel):
+    """Product data from /api/search/product (Accept: application/json, flat shape).
+
+    Fetched per article during enrichment. Carries the category ids (for the
+    Herde/IS decision) plus the two fields the DHL ProductName is now built from:
+    ``manufacturerNumber`` and the color property option (matched by group).
+    """
+
+    product_number: str | None = None
+    manufacturer_number: str | None = None
+    category_ids: list[str] = Field(default_factory=list)
+    properties: list[SwPropertyOption] = Field(default_factory=list)
+
+    @field_validator("category_ids", "properties", mode="before")
+    @classmethod
+    def _null_to_empty(cls, v: object) -> object:
+        # Shopware sends null when the field/association isn't populated.
+        return v or []
+
+    def color(self, group_id: str) -> str | None:
+        """Name of the color property option, matched by its property group."""
+        return next(
+            (p.name for p in self.properties if p.group_id == group_id and p.name),
+            None,
+        )
+
+
 class SwOrderLineItem(_ApiModel):
     type: str | None = None
     label: str | None = None

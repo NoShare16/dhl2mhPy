@@ -228,6 +228,11 @@ Diese Werte landen je Artikel im XML (`Weight`, `Volume`).
 
 - Es wird **ein `Order`** je Auftrag erzeugt, mit Sender, Empfänger (Lieferadresse)
   und je **Artikel** einem `Items`-Block.
+- **`ProductName`** wird aus dem Shopware-Produkt gebildet: `manufacturerNumber`
+  + Farbe (Property-Group „Farbe", `COLOR_GROUP_ID`), z. B. `HE517ABW0 Weiß`. Nur
+  wenn **beide** vorhanden sind, wird kombiniert — sonst bleibt der bisherige
+  Plenty-Name (`order_item_name`) als Fallback. Quelle ist derselbe
+  `/api/search/product`-Aufruf wie für die Kategorien (Schritt 6).
 - **Services erscheinen nicht** als eigene Items — sie stecken als
   `Services/MatchCode`-Blöcke im jeweiligen Artikel.
 - Umgebungsabhängig: `Sender/PartnerId/Id` = `1` (UAT) bzw. `3` (Prod).
@@ -282,7 +287,7 @@ Nach dem Upload wird `DHL__LABEL_WAIT_SECONDS` (Default 180) gewartet, dann
 3. Shopware-Anreicherung: former_parent_id-Override + Festwasser
 4. Skip: echte Services ohne former_parent_id
 5. Filter: Package-Number, Typ, Bundle-Struktur, Gewicht
-6. Kategorien aus Shopware (für IS/E-AN-Entscheidung)
+6. Shopware-Produkt: Kategorien (IS/E-AN) + ProductName (manufacturerNumber + Farbe)
 7. Service-Auflösung: MatchCodes, SWG/VPR, Gewicht/Volumen
 8. XML bauen + zu DHL hochladen
 9. Warten, Labels ziehen (dedupliziert)
