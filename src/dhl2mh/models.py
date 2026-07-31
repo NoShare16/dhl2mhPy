@@ -162,6 +162,10 @@ class SwProductInfo(_ApiModel):
 class SwOrderLineItem(_ApiModel):
     type: str | None = None
     label: str | None = None
+    # Per line item, NOT per position: the same service ordered for two articles
+    # is two line items of quantity 1, which Plenty aggregates into one position
+    # of quantity 2 (see shopware_mapping.assign_former_parent_ids).
+    quantity: Decimal = Decimal(1)
     # referencedId = the dvsn product-option id for services, the product id for
     # real products; productId is only set for type "product".
     referenced_id: str | None = None
