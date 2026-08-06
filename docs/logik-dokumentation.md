@@ -211,6 +211,22 @@ Ein Auftrag wird übersprungen, sobald eine dieser Bedingungen zutrifft
 | 6 | `Keine Artikel im Auftrag` | gar kein Artikel |
 | 7 | `Artikel ohne Gewichtsangabe: …` | Artikel mit `weight == 0/None` |
 
+### Zweites Tor: Modellnummer-Pflicht
+
+`require_model_names` läuft **später** als die Tabelle oben — erst nach der
+Produkt-Anreicherung (Schritte 6 + 6b), weil vorher gar nicht feststeht, ob ein
+Artikel einen Modellnamen bekommt.
+
+| # | Grund | Bedingung |
+|---|-------|-----------|
+| 8 | `Artikel ohne Modellnummer in Akeneo und Shopware: … (…)` | Artikel, für den **weder** Akeneo `modell` **noch** Shopware `manufacturerNumber` + Farbe existiert |
+
+Ein solcher Auftrag wird **nicht** an DHL übertragen. Er landet mit Grund und
+Artikelnummer in der Report-Mail und als `pipeline.order_skipped`
+(`stage=model_name`) im Log. Der Plenty-`order_item_name` zählt dabei **nicht**
+als Modellnummer — er ist eine Produktbeschreibung („Miele K 7347 C
+Einbau-Kühlschrank inkl. 5 Jahre Garantie"), keine Modellbezeichnung.
+
 ### Wichtig: Package-Number-Erkennung
 
 Plenty legt das Original-Paket unter `shippingPackages[0]` mit **leerer**
@@ -265,11 +281,36 @@ Diese Werte landen je Artikel im XML (`Weight`, `Volume`).
 
 - Es wird **ein `Order`** je Auftrag erzeugt, mit Sender, Empfänger (Lieferadresse)
   und je **Artikel** einem `Items`-Block.
-- **`ProductName`** wird aus dem Shopware-Produkt gebildet: `manufacturerNumber`
-  + Farbe (Property-Group „Farbe", `COLOR_GROUP_ID`), z. B. `HE517ABW0 Weiß`. Nur
-  wenn **beide** vorhanden sind, wird kombiniert — sonst bleibt der bisherige
-  Plenty-Name (`order_item_name`) als Fallback. Quelle ist derselbe
-  `/api/search/product`-Aufruf wie für die Kategorien (Schritt 6).
+- **`ProductName`** kommt aus dem **Akeneo-PIM**: Attribut `modell` + Farb-Label
+  (`color`), z. B. `UG 5005-30 Schwarz`. Grund für den Wechsel: Shopwares
+  `manufacturerNumber` trägt nur die numerische Artikelnummer (`1514720`),
+  `modell` dagegen die lesbare Modellbezeichnung (`UG 5005-30`) — bei der großen
+  Mehrheit der Artikel unterscheiden sich die beiden.
+  - **Zuordnung** über das eindeutige Zahl-Attribut `plenty_varianten_id`
+    (= Plenty-Variantennummer, derselbe Schlüssel wie Shopwares `productNumber`).
+  - **Instanzen** werden der Reihe nach gefragt: erst **MK**
+    (`pim.mykitchens.de`), dann **ML** (`pim.mylivings.de`) für alles, was MK
+    nicht beantworten konnte.
+  - **Farbe:** die Produkt-API liefert nur den Options-Code (`kupfer_rose`); das
+    de_DE-Label (`Kupfer Rosé`) wird separat geholt und je Code gecacht. Die
+    Platzhalter-Optionen `empty` („keine Angabe") und `Nicht_zutreffend` gelten
+    als **keine** Farbe — sie sitzen auf rund 3.300 der ~14.700 MK-Produkte und
+    würden sonst als `DKF 1 keine Angabe` bei DHL landen.
+  - **Fehlt die Farbe**, bleibt das Modell allein stehen (`UG 5005-30`); ein
+    Modell ohne Farbe ist ein vollwertiger Name.
+- **Quellenkette** für den `ProductName`:
+  1. Akeneo `modell` (+ Farbe)
+  2. Shopware `manufacturerNumber` + Farbe (Property-Group „Farbe",
+     `COLOR_GROUP_ID`) — nur wenn **beide** vorhanden sind
+  3. sonst: **Auftrag wird geskippt** (Skip-Regel 8, Abschnitt 8)
+
+  Der Plenty-`order_item_name` ist **keine** dritte Stufe mehr. Er bleibt zwar
+  bis zur Anreicherung im Feld stehen, gilt aber nicht als Modellnummer.
+- Die PIM-Anreicherung selbst ist **best-effort**: Sind die `AKENEO*`-Variablen
+  leer oder ist das PIM nicht erreichbar, bricht der Lauf **nicht** ab — es
+  greift Stufe 2. Fällt das PIM aus *und* hat Shopware keine
+  `manufacturerNumber` + Farbe, werden die betroffenen Aufträge geskippt statt
+  mit einem Behelfsnamen verschickt.
 - **Services erscheinen nicht** als eigene Items — sie stecken als
   `Services/MatchCode`-Blöcke im jeweiligen Artikel.
 - Umgebungsabhängig: `Sender/PartnerId/Id` = `1` (UAT) bzw. `3` (Prod).
@@ -324,7 +365,9 @@ Nach dem Upload wird `DHL__LABEL_WAIT_SECONDS` (Default 180) gewartet, dann
 3. Shopware-Anreicherung: former_parent_id-Override + Festwasser
 4. Skip: echte Services ohne former_parent_id
 5. Filter: Package-Number, Typ, Bundle-Struktur, Gewicht
-6. Shopware-Produkt: Kategorien (IS/E-AN) + ProductName (manufacturerNumber + Farbe)
+6. Shopware-Produkt: Kategorien (IS/E-AN) + Fallback-Name (manufacturerNumber + Farbe)
+6b. Akeneo-PIM: ProductName aus modell + Farbe (MK, dann ML) — best-effort
+6c. Skip: Artikel ohne Modellnummer aus beiden Quellen
 7. Service-Auflösung: MatchCodes, SWG/VPR, Gewicht/Volumen
 8. XML bauen + zu DHL hochladen
 9. Warten, Labels ziehen (dedupliziert)

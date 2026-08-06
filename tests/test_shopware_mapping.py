@@ -17,7 +17,7 @@ from dhl2mh.models import (
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
     assign_water_connection,
-    product_display_name,
+    product_model_name,
     require_service_former_parent_ids,
 )
 
@@ -375,7 +375,7 @@ def test_discount_position_without_former_parent_does_not_skip():
     assert result.skipped == []
 
 
-# ── product_display_name: ProductName from manufacturerNumber + color ────────
+# ── product_model_name: fallback name from manufacturerNumber + color ────────
 
 
 def _product_info(*, manufacturer=None, color=None, color_group=COLOR_GROUP_ID):
@@ -387,21 +387,22 @@ def _product_info(*, manufacturer=None, color=None, color_group=COLOR_GROUP_ID):
 
 def test_product_name_combines_manufacturer_and_color():
     info = _product_info(manufacturer="HE517ABW0", color="Schwarz")
-    assert product_display_name(info, fallback="Plenty-Name") == "HE517ABW0 Schwarz"
+    assert product_model_name(info) == "HE517ABW0 Schwarz"
 
 
-def test_product_name_falls_back_when_manufacturer_missing():
+def test_no_name_when_manufacturer_missing():
+    """None, not the Plenty name — a description is not a model number."""
     info = _product_info(manufacturer=None, color="Schwarz")
-    assert product_display_name(info, fallback="Plenty-Name") == "Plenty-Name"
+    assert product_model_name(info) is None
 
 
-def test_product_name_falls_back_when_color_missing():
+def test_no_name_when_color_missing():
     info = _product_info(manufacturer="HE517ABW0", color=None)
-    assert product_display_name(info, fallback="Plenty-Name") == "Plenty-Name"
+    assert product_model_name(info) is None
 
 
 def test_product_name_ignores_color_from_other_group():
     # A property in a different group must not be treated as the color.
     info = _product_info(manufacturer="HE517ABW0", color="Elektro", color_group="other")
-    assert product_display_name(info, fallback="Plenty-Name") == "Plenty-Name"
+    assert product_model_name(info) is None
     assert info.color(COLOR_GROUP_ID) is None

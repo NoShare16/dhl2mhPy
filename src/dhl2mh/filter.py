@@ -3,6 +3,13 @@
 Returns the orders that should continue down the pipeline plus a list of
 SkippedOrder records for the report mail. Service resolution (MatchCodes,
 auto-attached SWG/VPR) happens later in service_resolver.py.
+
+Two gates, run at different points of the pipeline:
+
+* ``filter_orders`` — structural checks (package number, order type, bundle
+  shape, weight), before any product enrichment.
+* ``require_model_names`` — every article must carry a model designation. Can
+  only run *after* the Akeneo and Shopware enrichment has set it.
 """
 
 from typing import NamedTuple
@@ -29,6 +36,50 @@ def filter_orders(orders: list[PlentyOrder]) -> FilterResult:
             skipped.append(_to_skipped(order, reason))
 
     return FilterResult(passed=passed, skipped=skipped)
+
+
+class ModelNameResult(NamedTuple):
+    passed: list[PlentyOrder]
+    skipped: list[SkippedOrder]
+
+
+def require_model_names(orders: list[PlentyOrder]) -> ModelNameResult:
+    """Split orders on the model-name requirement.
+
+    Every article must have a model designation from *some* source — the Akeneo
+    ``modell`` attribute or, failing that, Shopware's manufacturerNumber +
+    color. If one article has neither, the whole order is skipped and reported
+    instead of being transmitted with the Plenty order_item_name, which is a
+    product description rather than a model number.
+
+    Must run after both enrichment steps have set ``has_model_name``.
+    """
+    passed: list[PlentyOrder] = []
+    skipped: list[SkippedOrder] = []
+
+    for order in orders:
+        missing = _article_without_model_name(order.order_items)
+        if missing is None:
+            passed.append(order)
+        else:
+            skipped.append(
+                _to_skipped(
+                    order,
+                    f"Artikel ohne Modellnummer in Akeneo und Shopware: {missing.id}"
+                    f" ({missing.name or 'ohne Namen'})",
+                )
+            )
+
+    return ModelNameResult(passed=passed, skipped=skipped)
+
+
+def _article_without_model_name(items: list[OrderItem]) -> OrderItem | None:
+    for item in items:
+        if item.stock_limitation not in STOCK_LIMITATION_ARTICLE:
+            continue
+        if not item.has_model_name:
+            return item
+    return None
 
 
 # ── predicate ──────────────────────────────────────────────────────────────
