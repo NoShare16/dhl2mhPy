@@ -30,3 +30,21 @@ def settings(monkeypatch) -> Settings:
     for k, v in env.items():
         monkeypatch.setenv(k, v)
     return Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+@pytest.fixture
+def akeneo_settings(settings, monkeypatch) -> Settings:
+    """Settings with both PIM instances configured (MK first, then ML)."""
+    env = {
+        "AKENEO__USERNAME": "pim-user",
+        "AKENEO__PASSWORD": "pim-pw",
+        "AKENEOMK__BASE_URL": "https://pim-mk.test",
+        "AKENEOMK__CLIENT_ID": "mk-cid",
+        "AKENEOMK__SECRET": "mk-secret",
+        "AKENEOML__BASE_URL": "https://pim-ml.test",
+        "AKENEOML__CLIENT_ID": "ml-cid",
+        "AKENEOML__SECRET": "ml-secret",
+    }
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    return Settings(_env_file=None)  # type: ignore[call-arg]

@@ -1,8 +1,8 @@
 # dhl2mh
 
-Pipeline: Plenty orders → Shopware enrichment → filter → DHL DeliverIT XML upload
-→ label tracking number written back to Plenty. Python rewrite of the original C# project.
-Runs as a cron job (one pass per invocation).
+Pipeline: Plenty orders → Shopware enrichment → filter → Akeneo PIM product names
+→ DHL DeliverIT XML upload → label tracking number written back to Plenty. Python
+rewrite of the original C# project. Runs as a cron job (one pass per invocation).
 
 ## Setup
 
@@ -32,7 +32,13 @@ dhl2mh run --log-level DEBUG --items-per-page 50 --concurrency 5
 | `dev` (default) | `deliverit-uat.dhl.com` | `1` |
 | `prod` | `deliverit.dhl.com` | `3` |
 
-Plenty and Shopware are **always live** — only the DHL endpoint changes.
+Plenty, Shopware and Akeneo are **always live** — only the DHL endpoint changes.
+
+The Akeneo PIM supplies the `ProductName` sent to DHL (attribute `modell` plus
+the color label), looked up per article by `plenty_varianten_id`; the MK instance
+is asked first, then ML. It is the one **optional** integration: leave the
+`AKENEO*` keys empty — or let the PIM be unreachable — and the pipeline falls
+back to the Shopware name (`manufacturerNumber` + color) as before.
 
 > ⚠️ `--dry-run` skips only the Plenty tracking-number write-back and the report email. The **DHL upload still runs**, so when using `APP_ENV=prod` it creates real shipping labels. A true dry run is only safe against the UAT environment.
 

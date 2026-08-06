@@ -18,6 +18,7 @@ siehe ergänzend [`logik-dokumentation.md`](./logik-dokumentation.md).
 10. [`filter.py` — Versandfilter](#10-filterpy--versandfilter)
 11. [`service_resolver.py` — Service-Auflösung](#11-service_resolverpy--service-auflösung)
 12. [`shopware_mapping.py` — Shopware-Anreicherung](#12-shopware_mappingpy--shopware-anreicherung)
+12b. [`akeneo_mapping.py` — PIM-Name](#12b-akeneo_mappingpy--pim-name)
 13. [`xml_builder.py` — DHL-XML](#13-xml_builderpy--dhl-xml)
 14. [`pipeline.py` — Orchestrierung](#14-pipelinepy--orchestrierung)
 15. [`cli.py` — Kommandozeile](#15-clipy--kommandozeile)
@@ -35,9 +36,9 @@ siehe ergänzend [`logik-dokumentation.md`](./logik-dokumentation.md).
 Aufruf **einen** Durchlauf aus (für Cron gedacht):
 
 > Plenty-Aufträge holen → auf Domain-Modell mappen → mit Shopware anreichern →
-> filtern → Services auflösen → DHL-DeliverIT-XML bauen & hochladen → auf Labels
-> warten → Tracking-Nummer nach Plenty zurückschreiben → Report-Mail für
-> übersprungene Aufträge.
+> filtern → Produktnamen aus dem Akeneo-PIM holen → Services auflösen →
+> DHL-DeliverIT-XML bauen & hochladen → auf Labels warten → Tracking-Nummer nach
+> Plenty zurückschreiben → Report-Mail für übersprungene Aufträge.
 
 **Tech-Stack:** Python ≥ 3.12, `httpx` (async HTTP), `pydantic` / `pydantic-settings`
 (Modelle & Config), `typer` (CLI), `lxml` (XML), `structlog` (Logging),
@@ -56,19 +57,23 @@ Der gesamte Lauf ist async und nutzt je einen Client pro Workflow
 ```
 PlentyClient.iter_orders ─► map_order ─► _enrich_from_shopware_order
    ─► require_service_former_parent_ids ─► filter_orders
-   ─► _enrich_from_shopware_product ─► resolve_orders
+   ─► _enrich_from_shopware_product ─► _enrich_from_akeneo ─► resolve_orders
    ─► OrderXmlBuilder.build ─► DhlClient.upload_order_xml
    ─► (warten) ─► DhlClient.get_labels ─► PlentyClient.update_package
    ─► send_skipped_orders_report
 ```
 
-Drei externe Systeme:
+Vier externe Systeme:
 
 | System | Client | Auth |
 |--------|--------|------|
 | PlentyMarkets (REST) | `PlentyClient` | Bearer-Token (`/rest/login`), 401-Retry |
 | Shopware 6 (Admin-API) | `ShopwareClient` | OAuth `client_credentials`, Token-TTL |
+| Akeneo PIM (2 Instanzen: MK, ML) | `AkeneoClient` | OAuth `password`-Grant + Basic, Token-TTL |
 | DHL DeliverIT (DSI/it4logistics) | `DhlClient` | Basic-Auth mit SHA1-Passwort-Hash |
+
+Akeneo ist das einzige **optionale** System: fehlen die `AKENEO*`-Variablen oder
+fällt das PIM aus, läuft der Workflow mit dem Shopware-Namen weiter.
 
 ---
 
@@ -86,7 +91,8 @@ src/dhl2mh/
 ├── mapping.py           # Service-IDs, Whitelist, MatchCodes
 ├── filter.py            # Pass/Skip-Prädikate
 ├── service_resolver.py  # Services → MatchCodes, SWG/VPR, Gewicht/Volumen
-├── shopware_mapping.py  # former_parent, Festwasser, ProductName, Pflichtfeld-Skip
+├── shopware_mapping.py  # former_parent, Festwasser, Fallback-Name, Pflichtfeld-Skip
+├── akeneo_mapping.py    # ProductName aus PIM-modell + Farbe
 ├── xml_builder.py       # DHL-DeliverIT-XML
 ├── web.py               # optionaler manueller Web-Trigger (FastAPI)
 ├── notifications.py     # SMTP-Report-Mail
@@ -94,6 +100,7 @@ src/dhl2mh/
 └── clients/
     ├── plenty.py
     ├── shopware.py
+    ├── akeneo.py
     └── dhl.py
 tests/                   # pytest-Suite (+ fixtures/)
 docs/                    # diese Dokumentation
@@ -108,19 +115,28 @@ Pydantic-Settings, geladen aus `.env` (verschachtelt mit Trenner `__`).
 
 - **`Settings(BaseSettings)`** — Top-Level:
   `app_env` (`dev`|`prod`), `report_recipient_email`, sowie die verschachtelten
-  Blöcke `plenty`, `shopware`, `dhl`, `smtp`, `web`.
+  Blöcke `plenty`, `shopware`, `dhl`, `smtp`, `web`, `akeneo`, `akeneomk`,
+  `akeneoml`.
 - **Nested-Modelle:** `PlentySettings` (username/password/base_url),
   `ShopwareSettings` (client_id/client_secret/base_url),
   `DhlSettings` (uat_/prod_ username/password/base_url, `label_wait_seconds=180`,
   `uat_/prod_sender_partner_id` = `1`/`3`), `SmtpSettings`,
   `WebSettings` (username/password/secret_key — leer = Web-Trigger deaktiviert,
-  siehe Abschnitt 16).
+  siehe Abschnitt 16),
+  `AkeneoSettings` (username/password — von **beiden** PIM-Instanzen geteilt) und
+  je Instanz `AkeneoInstanceSettings` (base_url/client_id/secret).
+- **`akeneo_instances`** — die konfigurierten PIM-Instanzen in Abfragereihenfolge
+  (`MK`, dann `ML`). Leer, wenn die geteilten Zugangsdaten fehlen oder keine
+  Instanz vollständig konfiguriert ist → die PIM-Anreicherung entfällt
+  ersatzlos und der Shopware-Name bleibt stehen. Damit läuft eine Installation
+  ohne `AKENEO*`-Variablen unverändert weiter.
 - **Umgebungs-Properties:** `dhl_username`, `dhl_password`, `dhl_base_url`,
   `is_production` — wählen abhängig von `app_env` zwischen UAT und Prod.
 - **`get_settings()`** — gecachter Singleton (liest `.env` beim ersten Aufruf).
 
 `.env`-Schlüssel z. B.: `APP_ENV`, `PLENTY__USERNAME`, `SHOPWARE__CLIENT_ID`,
-`DHL__UAT_PASSWORD`, `DHL__LABEL_WAIT_SECONDS`, `SMTP__HOST`, …
+`DHL__UAT_PASSWORD`, `DHL__LABEL_WAIT_SECONDS`, `SMTP__HOST`,
+`AKENEO__USERNAME`, `AKENEOMK__BASE_URL`, `AKENEOML__CLIENT_ID`, …
 
 ---
 
@@ -145,11 +161,25 @@ Drei Gruppen. Alle API-Modelle erben von `_ApiModel`
 - `SwProduct` — `product_number`, `properties` (null-tolerant via `field_validator`)
 - `SwProductInfo` — flaches `/api/search/product`-Ergebnis: `product_number`,
   `manufacturer_number`, `category_ids`, `properties`; `color(group_id)` liefert
-  den Namen der Farb-Property. Basis für Kategorien **und** den DHL-`ProductName`.
+  den Namen der Farb-Property. Basis für Kategorien **und** den *Fallback*-Namen
+  (den primären `ProductName` liefert Akeneo, siehe 5.2b).
 - `SwOrderLineItem` — `type`, `label`, `referenced_id`, `product_id`, `quantity`,
   `payload`, `product`. `quantity` ist die Menge **dieses** Line-Items — beim
   1:n-Split (Abschnitt 12) wird sie zur Menge der aufgeteilten Plenty-Position.
 - `SwOrder` — `order_number`, `line_items`
+
+### 5.2b Akeneo-DTOs (`/api/rest/v1/products`)
+
+Jeder Attributwert ist eine Liste von `{locale, scope, data}`-Einträgen; die
+gelesenen Attribute sind weder lokalisiert noch scoped, die Liste hat also genau
+einen Eintrag.
+
+- `AkeneoValue` — `locale`, `scope`, `data`
+- `AkeneoProduct` — `identifier`, `values`; **`scalar(attribute)`** liefert den
+  ersten nicht-leeren Skalarwert als String (Zahlen werden stringifiziert,
+  zusammengesetzte Werte wie Medien/Preise ergeben `None`).
+- `AkeneoProductInfo` — aufgelöstes Ergebnis je Variante: `model`, `color`.
+  `color` ist bereits das **de_DE-Label**, nicht der Options-Code.
 
 ### 5.3 Domain-Modelle (was die Pipeline nutzt)
 
@@ -170,7 +200,7 @@ Drei Gruppen. Alle API-Modelle erben von `_ApiModel`
 
 ## 6. Clients
 
-Alle drei: ein Client pro Lauf, als `async with`, eigener `httpx.AsyncClient`.
+Alle: ein Client pro Lauf, als `async with`, eigener `httpx.AsyncClient`.
 
 ### 6.1 `clients/plenty.py` — `PlentyClient`
 
@@ -191,13 +221,39 @@ Alle drei: ein Client pro Lauf, als `async with`, eigener `httpx.AsyncClient`.
 - **`get_product_info(product_number)`** / **`get_product_infos_bulk(..., concurrency=5)`**
   → `SwProductInfo` je Produkt (`POST /api/search/product`, Filter `productNumber`,
   `associations: {categories, properties}`). Liefert Kategorie-IDs **und** die
-  Felder für den `ProductName` (`manufacturerNumber` + Farbe). Nicht gefundene
+  Felder für den Fallback-Namen (`manufacturerNumber` + Farbe). Nicht gefundene
   Produkte fehlen im Bulk-Ergebnis (Aufrufer behält dann die Plenty-Werte).
 - **`get_order(order_number)`** → `SwOrder | None`. `POST /api/search/order` mit
   LineItems + Produkt-Properties (siehe Logik-Doku Abschnitt 3). Fehler werden
   **geworfen** (das C#-Original verschluckte sie).
 
-### 6.3 `clients/dhl.py` — `DhlClient`
+### 6.3 `clients/akeneo.py` — `AkeneoClient` / `AkeneoProductLookup`
+
+Ein `AkeneoClient` **je PIM-Instanz**; beide teilen sich Username/Passwort und
+unterscheiden sich nur in Base-URL und Client-Credentials.
+
+- **Auth:** OAuth `password`-Grant (`POST /api/oauth/v1/token`), `client_id`/
+  `secret` als HTTP-Basic. Token-TTL 3600 s, proaktiver Refresh mit 60-s-Buffer,
+  zusätzlich Refresh bei `401` — dieselbe Mechanik wie im Shopware-Client.
+- **`get_product_info(plenty_variation_id)`** → `AkeneoProductInfo | None`.
+  `GET /api/rest/v1/products` mit `search` auf `plenty_varianten_id` und
+  `attributes=modell,color`. `None`, wenn diese Instanz die Variante nicht kennt.
+  > `plenty_varianten_id` ist ein *unique number*-Attribut; Akeneos Zahlenfilter
+  > kennt **kein** `IN`, deshalb eine Anfrage pro Artikel statt eines Batches.
+- **`get_product_infos_bulk(ids, concurrency=5)`** → `{variation_id: Info}`,
+  parallel über ein Semaphore. Nicht gefundene Varianten fehlen im Ergebnis.
+- **Farb-Label:** `GET /api/rest/v1/attributes/color/options/{code}` →
+  `labels.de_DE`, pro Code für die Lebensdauer des Clients gecacht. Das Attribut
+  hat ~500 Optionen, ein Lauf berührt davon nur eine Handvoll. Ein unbekannter
+  Code (404) wird unverändert durchgereicht statt verworfen; die Platzhalter aus
+  `AKENEO_COLOR_PLACEHOLDER_CODES` gelten als „keine Farbe".
+- **`AkeneoProductLookup(settings)`** — Fassade über alle konfigurierten
+  Instanzen. Fragt sie der Reihe nach (MK, dann ML) und reicht an die nächste
+  Instanz nur weiter, was noch offen ist. Übernommen werden nur Treffer **mit**
+  `modell` — ein Eintrag ohne Modell ergibt keinen Namen und bleibt offen.
+  `enabled` ist `False`, wenn keine Instanz konfiguriert ist.
+
+### 6.4 `clients/dhl.py` — `DhlClient`
 
 - **Auth:** `Basic base64("USER:SHA1_UPPER_HEX(PW)")` — DHL-Vorgabe, kein
   Security-Design (`_build_basic_auth`).
@@ -259,6 +315,15 @@ Geteilt von Filter und Resolver.
   siehe Logik-Doku Abschnitt 3.2.
 - **`HERDE_CATEGORY_IDS`** — Shopware-Kategorien „Herde" → `E-AN`.
 - **`WATER_CONNECTION_GROUP_ID`** / **`WATER_CONNECTION_MATCH_CODE="AWS"`**.
+- **`COLOR_GROUP_ID`** — Shopware-Property-Group „Farbe" (nur noch für den
+  Fallback-Namen).
+- **Akeneo-Attributcodes:** `AKENEO_MODEL_ATTRIBUTE="modell"`,
+  `AKENEO_COLOR_ATTRIBUTE="color"`,
+  `AKENEO_VARIATION_ID_ATTRIBUTE="plenty_varianten_id"`,
+  `AKENEO_LABEL_LOCALE="de_DE"` sowie
+  **`AKENEO_COLOR_PLACEHOLDER_CODES`** = `{empty, Nicht_zutreffend}` — Optionen
+  mit der Bedeutung „keine Farbe erfasst". Bewusst nach **Code** gematcht: eine
+  Heuristik über das Label würde früher oder später eine echte Farbe schlucken.
 - **`STOCK_LIMITATION_ARTICLE=(0,1)`**, **`STOCK_LIMITATION_SERVICE=2`**.
 - **`map_to_match_codes(service_id, category_ids, *, festwasser=False)`** →
   Liste von MatchCodes. Zwei IDs liefern zwei Codes. Für `SERVICE_INSTALL`:
@@ -317,13 +382,29 @@ Reine Funktionen (API-entkoppelt, gut testbar):
   `former_parent_split` im Log. Details: Logik-Doku Abschnitt 3.1.
 - **`assign_water_connection(order, sw_order)`** → setzt `festwasser` aus der
   Property-Group „Wasseranschluss" (`name` = ja/nein).
-- **`product_display_name(info, *, fallback)`** → DHL-`ProductName` aus
+- **`product_display_name(info, *, fallback)`** → **Fallback**-`ProductName` aus
   `manufacturerNumber` + Farbe (`COLOR_GROUP_ID`). Nur wenn **beide** vorhanden
   sind, wird kombiniert; fehlt eines, bleibt der `fallback` (Plenty-Name).
+  Greift nur, wo Akeneo (Abschnitt 12b) nichts liefert.
 - **`require_service_former_parent_ids(orders)`** → `FormerParentResult`; skippt
   Aufträge, deren echte Services kein `former_parent_id` haben.
 
 Details siehe Logik-Doku (Abschnitte 3–7).
+
+---
+
+## 12b. `akeneo_mapping.py` — PIM-Name
+
+- **`akeneo_display_name(info, *, fallback)`** → DHL-`ProductName` aus dem
+  PIM-Attribut `modell` + Farb-Label, z. B. `UG 5005-30 Schwarz`.
+  - Ohne `modell` greift der `fallback` (der Shopware-Name, der seinerseits auf
+    den Plenty-Namen zurückfällt).
+  - Ohne Farbe steht das Modell **allein** — das ist immer noch besser als die
+    numerische Artikelnummer, also kein Grund zurückzufallen.
+
+Hintergrund: Shopwares `manufacturerNumber` trägt nur die Artikelnummer
+(`1514720`), `modell` die lesbare Bezeichnung (`UG 5005-30`) — bei einer
+Stichprobe von 3.000 MK-Produkten unterschieden sich beide in 2.634 Fällen.
 
 ---
 
@@ -356,11 +437,17 @@ Die 11 Schritte siehe Abschnitt 2. Besonderheiten:
   damit Filter und Resolver denselben Gruppierungs-Schlüssel sehen.
 - **`dry_run`:** überspringt das Plenty-Rückschreiben (Schritt 10) und die Mail
   (Schritt 11) — der DHL-Upload läuft trotzdem (in Prod also echte Labels!).
+- **Schritt 6b (Akeneo) nach Schritt 6 (Shopware):** die PIM-Anreicherung
+  überschreibt den in Schritt 6 gesetzten Namen. Aus dieser Reihenfolge ergibt
+  sich die Fallback-Kette Akeneo → Shopware → Plenty von selbst.
 - **Robustheit:** ein fehlschlagender Tracking-Push bricht den Lauf nicht ab;
-  ein Mail-Fehler ebenfalls nicht.
+  ein Mail-Fehler ebenfalls nicht. Auch die PIM-Anreicherung ist
+  **best-effort** — ein Fehler wird als `pipeline.akeneo_enrichment_failed`
+  geloggt und lässt die Shopware-Namen stehen, statt den Lauf zu kippen.
 
-Helper: `_enrich_from_shopware_order`, `_enrich_from_shopware_product`
-(Kategorien + `ProductName`), `_maybe_send_report`.
+Helper: `_articles`, `_enrich_from_shopware_order`, `_enrich_from_shopware_product`
+(Kategorien + Fallback-Name), `_enrich_from_akeneo` (`ProductName`),
+`_maybe_send_report`.
 
 ---
 
@@ -436,15 +523,17 @@ Beispiel-Responses. Abdeckung pro Modul:
 | `test_config.py` | Settings/Env |
 | `test_models.py` | DTO-Parsing |
 | `test_plenty_client.py` / `test_shopware_client.py` / `test_dhl_client.py` | Clients (Auth, Parsing, Dedup) |
+| `test_akeneo_client.py` | PIM-Client: Auth, Farb-Label + Cache, Platzhalter, MK→ML-Durchreichung |
 | `test_mapper.py` | ApiOrder → PlentyOrder, Package-Number |
 | `test_bundles.py` | Gruppierung, `is_service` |
 | `test_mapping.py` | MatchCodes, Festwasser/AWS |
 | `test_filter.py` | Skip-Regeln |
 | `test_service_resolver.py` | Service-Auflösung, Rabatt-Ignorierung |
-| `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, ProductName, Pflichtfeld-Skip |
+| `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, Pflichtfeld-Skip |
+| `test_akeneo_mapping.py` | ProductName aus modell + Farbe, Fallback-Kette, `AkeneoProduct.scalar` |
 | `test_xml_builder.py` | DHL-XML |
 | `test_notifications.py` | Report-Mail |
-| `test_pipeline.py` | End-to-End-Smoke + Dry-Run |
+| `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML / PIM-Ausfall |
 | `test_web.py` | Web-Trigger: Login, Session, Single-Slot-Lauf |
 
 Ausführen: `python -m pytest -q`.
