@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from dhl2mh.filter import filter_orders
+from dhl2mh.filter import filter_orders, require_model_names
 from dhl2mh.mapper import map_order
 from dhl2mh.mapping import SERVICE_AG, SERVICE_EAN
 from dhl2mh.models import Address, OrderItem, PlentyOrder
@@ -239,3 +239,65 @@ def test_missing_shopware_id_does_not_cause_skip():
     )
     result = filter_orders([order])
     assert result.passed == [order]
+
+
+# ── require_model_names: every article needs a model designation ───────────
+
+
+def _named_article(item_id: int, *, name: str, has_model: bool) -> OrderItem:
+    return OrderItem(
+        id=item_id,
+        name=name,
+        stock_limitation=0,
+        weight_g=Decimal(1000),
+        has_model_name=has_model,
+    )
+
+
+def test_order_passes_when_every_article_has_a_model_name():
+    order = _order(items=[
+        _named_article(1, name="UG 5005-30 Schwarz", has_model=True),
+        _named_article(2, name="HE517ABW0 Schwarz", has_model=True),
+    ])
+    result = require_model_names([order])
+    assert result.passed == [order]
+    assert result.skipped == []
+
+
+def test_order_is_skipped_when_one_article_has_no_model_name():
+    """Neither Akeneo nor Shopware knew the article — do not ship it."""
+    order = _order(
+        order_id=235655,
+        items=[
+            _named_article(1, name="UG 5005-30 Schwarz", has_model=True),
+            _named_article(1003, name="Gutmann Deckenmodul Capa 07 EM", has_model=False),
+        ],
+        addresses=[_addr()],
+    )
+    result = require_model_names([order])
+
+    assert result.passed == []
+    [skipped] = result.skipped
+    assert skipped.order_id == 235655
+    assert "Modellnummer" in skipped.reason
+    # The reason names the offending article so the mail is actionable.
+    assert "1003" in skipped.reason
+    assert "Gutmann Deckenmodul Capa 07 EM" in skipped.reason
+    assert skipped.customer_name == "Max Mustermann"
+
+
+def test_services_without_a_model_name_are_irrelevant():
+    """Only articles carry a ProductName; services become MatchCode blocks."""
+    order = _order(items=[
+        _named_article(1, name="UG 5005-30", has_model=True),
+        _service(SERVICE_AG),
+    ])
+    assert require_model_names([order]).passed == [order]
+
+
+def test_orders_are_split_independently():
+    good = _order(order_id=1, items=[_named_article(1, name="E 216", has_model=True)])
+    bad = _order(order_id=2, items=[_named_article(2, name="Irgendwas", has_model=False)])
+    result = require_model_names([good, bad])
+    assert result.passed == [good]
+    assert [s.order_id for s in result.skipped] == [2]

@@ -12,13 +12,13 @@ from typing import NamedTuple
 
 import structlog
 
-from dhl2mh.akeneo_mapping import akeneo_display_name
+from dhl2mh.akeneo_mapping import akeneo_model_name
 from dhl2mh.clients.akeneo import AkeneoProductLookup
 from dhl2mh.clients.dhl import DhlClient
 from dhl2mh.clients.plenty import PlentyClient
 from dhl2mh.clients.shopware import ShopwareClient
 from dhl2mh.config import Settings, get_settings
-from dhl2mh.filter import filter_orders
+from dhl2mh.filter import filter_orders, require_model_names
 from dhl2mh.mapper import map_order
 from dhl2mh.mapping import STOCK_LIMITATION_ARTICLE
 from dhl2mh.models import OrderItem, PackageData, PlentyOrder, SkippedOrder
@@ -27,7 +27,7 @@ from dhl2mh.service_resolver import resolve_orders
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
     assign_water_connection,
-    product_display_name,
+    product_model_name,
     require_service_former_parent_ids,
 )
 from dhl2mh.xml_builder import OrderXmlBuilder
@@ -113,8 +113,17 @@ async def run_pipeline(
             filtered.passed, settings, concurrency=category_concurrency
         )
 
+        # 6c. Skip orders whose articles have no model name from either source.
+        names = require_model_names(filtered.passed)
+        log.info(
+            "pipeline.model_names",
+            passed=len(names.passed),
+            skipped=len(names.skipped),
+        )
+        _log_skipped("model_name", names.skipped)
+
         # 7. Resolve services (MatchCodes, SWG auto-add, VPR auto-add)
-        resolved = resolve_orders(filtered.passed)
+        resolved = resolve_orders(names.passed)
         log.info(
             "pipeline.resolved",
             passed=len(resolved.passed),
@@ -188,7 +197,11 @@ async def run_pipeline(
             _order_to_skipped(o, LABEL_MISSING_REASON) for o in missing_label_orders
         ]
         _maybe_send_report(
-            filtered.skipped + fp.skipped + resolved.skipped + missing_label_reports,
+            filtered.skipped
+            + fp.skipped
+            + names.skipped
+            + resolved.skipped
+            + missing_label_reports,
             settings,
             dry_run=dry_run,
         )
@@ -198,7 +211,12 @@ async def run_pipeline(
             uploaded=uploaded,
             labels_received=len(labels),
             tracking_pushed=tracking_pushed,
-            skipped=len(filtered.skipped) + len(fp.skipped) + len(resolved.skipped),
+            skipped=(
+                len(filtered.skipped)
+                + len(fp.skipped)
+                + len(names.skipped)
+                + len(resolved.skipped)
+            ),
         )
 
 
@@ -281,8 +299,12 @@ async def _enrich_from_akeneo(
 
     for item in articles:
         info = infos.get(str(item.id))
-        if info is not None:
-            item.name = akeneo_display_name(info, fallback=item.name)
+        if info is None:
+            continue
+        name = akeneo_model_name(info)
+        if name:
+            item.name = name
+            item.has_model_name = True
 
     log.info(
         "pipeline.akeneo_matched",
@@ -300,10 +322,11 @@ async def _enrich_from_shopware_product(
     """Enrich each article from its Shopware product: categories + fallback name.
 
     Categories feed the Herde/IS decision in the resolver; the name is built
-    from manufacturerNumber + color, falling back to the Plenty order_item_name
-    when either is missing (see ``product_display_name``). Articles not found in
-    Shopware keep their Plenty-seeded values. The name set here is only the
-    fallback — ``_enrich_from_akeneo`` overrides it wherever the PIM answers.
+    from manufacturerNumber + color and only set when **both** are present (see
+    ``product_model_name``). Articles not found in Shopware keep their
+    Plenty-seeded values. The name set here is the *fallback* —
+    ``_enrich_from_akeneo`` overrides it wherever the PIM answers, and an
+    article left without either ends up skipped in step 6c.
     """
     articles = _articles(orders)
     if not articles:
@@ -316,7 +339,10 @@ async def _enrich_from_shopware_product(
         if info is None:
             continue
         item.categories = info.category_ids
-        item.name = product_display_name(info, fallback=item.name)
+        name = product_model_name(info)
+        if name:
+            item.name = name
+            item.has_model_name = True
 
 
 async def _enrich_from_shopware_order(

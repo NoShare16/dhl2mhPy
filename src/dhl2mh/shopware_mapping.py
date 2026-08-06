@@ -133,17 +133,20 @@ def assign_water_connection(order: PlentyOrder, sw_order: SwOrder) -> int:
     return matched
 
 
-def product_display_name(info: SwProductInfo, *, fallback: str | None) -> str | None:
-    """DHL ProductName from the Shopware product: ``manufacturerNumber`` + color.
+def product_model_name(info: SwProductInfo) -> str | None:
+    """Model name from the Shopware product: ``manufacturerNumber`` + color.
 
-    Both parts must be present to build the combined name; if either is missing,
-    the ``fallback`` (the Plenty order_item_name) is kept unchanged.
+    The **second** source for the DHL ProductName, behind the Akeneo PIM. Both
+    parts must be present; ``None`` means Shopware has no usable designation for
+    this article. It is deliberately not backfilled with the Plenty
+    order_item_name — that is a description, not a model number, and an article
+    left without one gets its order skipped (``filter.require_model_names``).
     """
     manufacturer = (info.manufacturer_number or "").strip()
     color = (info.color(COLOR_GROUP_ID) or "").strip()
     if manufacturer and color:
         return f"{manufacturer} {color}"
-    return fallback
+    return None
 
 
 def _water_connection_flag(product: SwProduct) -> bool | None:

@@ -57,7 +57,8 @@ Der gesamte Lauf ist async und nutzt je einen Client pro Workflow
 ```
 PlentyClient.iter_orders ─► map_order ─► _enrich_from_shopware_order
    ─► require_service_former_parent_ids ─► filter_orders
-   ─► _enrich_from_shopware_product ─► _enrich_from_akeneo ─► resolve_orders
+   ─► _enrich_from_shopware_product ─► _enrich_from_akeneo
+   ─► require_model_names ─► resolve_orders
    ─► OrderXmlBuilder.build ─► DhlClient.upload_order_xml
    ─► (warten) ─► DhlClient.get_labels ─► PlentyClient.update_package
    ─► send_skipped_orders_report
@@ -186,7 +187,9 @@ einen Eintrag.
 - **`Address`** — Lieferadresse + `full_name`-Property.
 - **`OrderItem`** — eine Position. Enthält u. a. `id` (= itemVariationId),
   `stock_limitation`, `bundle_id` (Property 1021), `former_parent_id`,
-  `festwasser`, sowie die im Filter/Resolver befüllten Felder
+  `festwasser`, `has_model_name` (steht `name` eine echte Modellbezeichnung —
+  aus Akeneo oder Shopware — gegenüber dem bloßen Plenty-Namen?), sowie die im
+  Filter/Resolver befüllten Felder
   `service_ids`, `service_match_codes`, `categories`, `weight_kg`, `volume_cbm`.
   Ein `model_validator` setzt `former_parent_id` per Default auf `bundle_id`.
   `quantity`/`packages` können beim 1:n-Split überschrieben werden (Abschnitt 12).
@@ -348,6 +351,16 @@ Geteilt von Filter und Resolver.
 
 Reine Prädikate, keine Mutation. Nutzt `group_by_bundle` / `split_articles_and_services`.
 
+**`require_model_names(orders)`** → `ModelNameResult(passed, skipped)` — das
+zweite Tor, läuft **nach** der Produkt-Anreicherung (Pipeline-Schritt 6c):
+
+8. `Artikel ohne Modellnummer in Akeneo und Shopware: {id} ({name})`
+
+Geprüft wird `OrderItem.has_model_name`, das die beiden Anreicherungsschritte
+setzen. Ein Artikel ohne Modellnamen aus **beiden** Quellen kippt den **ganzen**
+Auftrag — er wird nicht übertragen, sondern gemeldet. Der Plenty-`order_item_name`
+zählt nicht als Modellnummer.
+
 ---
 
 ## 11. `service_resolver.py` — Service-Auflösung
@@ -382,10 +395,11 @@ Reine Funktionen (API-entkoppelt, gut testbar):
   `former_parent_split` im Log. Details: Logik-Doku Abschnitt 3.1.
 - **`assign_water_connection(order, sw_order)`** → setzt `festwasser` aus der
   Property-Group „Wasseranschluss" (`name` = ja/nein).
-- **`product_display_name(info, *, fallback)`** → **Fallback**-`ProductName` aus
-  `manufacturerNumber` + Farbe (`COLOR_GROUP_ID`). Nur wenn **beide** vorhanden
-  sind, wird kombiniert; fehlt eines, bleibt der `fallback` (Plenty-Name).
-  Greift nur, wo Akeneo (Abschnitt 12b) nichts liefert.
+- **`product_model_name(info)`** → **Fallback**-`ProductName` aus
+  `manufacturerNumber` + Farbe (`COLOR_GROUP_ID`), sonst `None`. Nur wenn
+  **beide** vorhanden sind, wird kombiniert. Bewusst **kein** Rückfall auf den
+  Plenty-Namen: fehlt hier und bei Akeneo (Abschnitt 12b) etwas, wird der
+  Auftrag geskippt (`require_model_names`).
 - **`require_service_former_parent_ids(orders)`** → `FormerParentResult`; skippt
   Aufträge, deren echte Services kein `former_parent_id` haben.
 
@@ -395,12 +409,12 @@ Details siehe Logik-Doku (Abschnitte 3–7).
 
 ## 12b. `akeneo_mapping.py` — PIM-Name
 
-- **`akeneo_display_name(info, *, fallback)`** → DHL-`ProductName` aus dem
-  PIM-Attribut `modell` + Farb-Label, z. B. `UG 5005-30 Schwarz`.
-  - Ohne `modell` greift der `fallback` (der Shopware-Name, der seinerseits auf
-    den Plenty-Namen zurückfällt).
-  - Ohne Farbe steht das Modell **allein** — das ist immer noch besser als die
-    numerische Artikelnummer, also kein Grund zurückzufallen.
+- **`akeneo_model_name(info)`** → DHL-`ProductName` aus dem PIM-Attribut
+  `modell` + Farb-Label, z. B. `UG 5005-30 Schwarz`, sonst `None`.
+  - Ohne `modell` → `None`; der Aufrufer versucht dann Shopware und skippt den
+    Auftrag, wenn auch das nichts liefert.
+  - Ohne Farbe steht das Modell **allein** — ein Modell ohne Farbe ist ein
+    vollwertiger Name, also kein Grund weiterzufallen.
 
 Hintergrund: Shopwares `manufacturerNumber` trägt nur die Artikelnummer
 (`1514720`), `modell` die lesbare Bezeichnung (`UG 5005-30`) — bei einer
@@ -439,7 +453,10 @@ Die 11 Schritte siehe Abschnitt 2. Besonderheiten:
   (Schritt 11) — der DHL-Upload läuft trotzdem (in Prod also echte Labels!).
 - **Schritt 6b (Akeneo) nach Schritt 6 (Shopware):** die PIM-Anreicherung
   überschreibt den in Schritt 6 gesetzten Namen. Aus dieser Reihenfolge ergibt
-  sich die Fallback-Kette Akeneo → Shopware → Plenty von selbst.
+  sich der Vorrang Akeneo → Shopware von selbst; beide setzen dabei
+  `has_model_name`.
+- **Schritt 6c (`require_model_names`):** kippt Aufträge, deren Artikel aus
+  keiner Quelle eine Modellnummer haben. Muss zwingend nach 6b laufen.
 - **Robustheit:** ein fehlschlagender Tracking-Push bricht den Lauf nicht ab;
   ein Mail-Fehler ebenfalls nicht. Auch die PIM-Anreicherung ist
   **best-effort** — ein Fehler wird als `pipeline.akeneo_enrichment_failed`
@@ -527,13 +544,13 @@ Beispiel-Responses. Abdeckung pro Modul:
 | `test_mapper.py` | ApiOrder → PlentyOrder, Package-Number |
 | `test_bundles.py` | Gruppierung, `is_service` |
 | `test_mapping.py` | MatchCodes, Festwasser/AWS |
-| `test_filter.py` | Skip-Regeln |
+| `test_filter.py` | Skip-Regeln inkl. Modellnummer-Pflicht |
 | `test_service_resolver.py` | Service-Auflösung, Rabatt-Ignorierung |
 | `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, Pflichtfeld-Skip |
 | `test_akeneo_mapping.py` | ProductName aus modell + Farbe, Fallback-Kette, `AkeneoProduct.scalar` |
 | `test_xml_builder.py` | DHL-XML |
 | `test_notifications.py` | Report-Mail |
-| `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML / PIM-Ausfall |
+| `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML, PIM-Ausfall, Skip ohne Modellnummer |
 | `test_web.py` | Web-Trigger: Login, Session, Single-Slot-Lauf |
 
 Ausführen: `python -m pytest -q`.
