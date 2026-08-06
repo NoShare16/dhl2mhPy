@@ -1,35 +1,36 @@
-from dhl2mh.akeneo_mapping import akeneo_display_name
+from dhl2mh.akeneo_mapping import akeneo_model_name
 from dhl2mh.models import AkeneoProduct, AkeneoProductInfo
 
 
 def test_model_and_color_are_combined():
     info = AkeneoProductInfo(model="UG 5005-30", color="Schwarz")
-    assert akeneo_display_name(info, fallback="1514720 Schwarz") == "UG 5005-30 Schwarz"
+    assert akeneo_model_name(info) == "UG 5005-30 Schwarz"
 
 
 def test_missing_color_keeps_the_model_alone():
-    """The model still beats the numeric Shopware fallback."""
+    """A model without a color is still a perfectly good name."""
     info = AkeneoProductInfo(model="UG 5005-30", color=None)
-    assert akeneo_display_name(info, fallback="1514720 Schwarz") == "UG 5005-30"
+    assert akeneo_model_name(info) == "UG 5005-30"
 
 
-def test_missing_model_falls_back():
+def test_missing_model_yields_nothing():
+    """The caller then tries Shopware and, failing that, skips the order."""
     info = AkeneoProductInfo(model=None, color="Schwarz")
-    assert akeneo_display_name(info, fallback="1514720 Schwarz") == "1514720 Schwarz"
+    assert akeneo_model_name(info) is None
 
 
-def test_blank_model_falls_back():
+def test_blank_model_yields_nothing():
     info = AkeneoProductInfo(model="   ", color="Schwarz")
-    assert akeneo_display_name(info, fallback="Plenty-Name") == "Plenty-Name"
+    assert akeneo_model_name(info) is None
 
 
-def test_fallback_may_be_absent():
-    assert akeneo_display_name(AkeneoProductInfo(), fallback=None) is None
+def test_empty_info_yields_nothing():
+    assert akeneo_model_name(AkeneoProductInfo()) is None
 
 
 def test_values_are_trimmed():
     info = AkeneoProductInfo(model="  E 216  ", color="  Weiss  ")
-    assert akeneo_display_name(info, fallback=None) == "E 216 Weiss"
+    assert akeneo_model_name(info) == "E 216 Weiss"
 
 
 # ── AkeneoProduct.scalar: the {locale, scope, data} value shape ─────────────

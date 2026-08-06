@@ -286,6 +286,13 @@ class OrderItem(BaseModel):
     # "Wasseranschluss" == "ja"). Flips SERVICE_INSTALL towards AWS.
     festwasser: bool = False
 
+    # True once ``name`` holds a real model designation — either the Akeneo
+    # "modell" attribute or Shopware's manufacturerNumber + color. Stays False
+    # while ``name`` is only the Plenty order_item_name, which is not a model
+    # number: such orders are skipped rather than shipped
+    # (filter.require_model_names).
+    has_model_name: bool = False
+
     @model_validator(mode="after")
     def _seed_former_parent_id(self) -> "OrderItem":
         if self.former_parent_id is None:
