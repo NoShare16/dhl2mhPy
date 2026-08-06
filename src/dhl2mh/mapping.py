@@ -83,9 +83,39 @@ WATER_CONNECTION_GROUP_ID: Final = "8910dbddf00a4d94998289840033982d"
 WATER_CONNECTION_MATCH_CODE: Final = "AWS"
 
 # ── Shopware property group "Farbe" — the color option name is combined with the
-# product's manufacturerNumber to form the DHL ProductName (see
-# shopware_mapping.product_display_name).
+# product's manufacturerNumber to form the *fallback* DHL ProductName (see
+# shopware_mapping.product_display_name). The primary name comes from Akeneo.
 COLOR_GROUP_ID: Final = "b7c2c23b73454356bec99f10042600eb"
+
+# ── Akeneo PIM attribute codes ─────────────────────────────────────────────
+# The DHL ProductName is built from the "modell" attribute (the readable model
+# designation, e.g. "UG 5005-30") plus the "color" option label. Shopware's
+# manufacturerNumber only carries the numeric article id ("1514720"), which is
+# why the PIM is asked first.
+#
+# Products are matched to Plenty positions through "plenty_varianten_id", a
+# unique number attribute holding the Plenty variation id — the same key
+# Shopware exposes as productNumber. Akeneo's number filter has no "IN"
+# operator, so lookups are one request per article.
+AKENEO_MODEL_ATTRIBUTE: Final = "modell"
+AKENEO_COLOR_ATTRIBUTE: Final = "color"
+AKENEO_VARIATION_ID_ATTRIBUTE: Final = "plenty_varianten_id"
+
+# "color" is a simpleselect: the product API returns the option code
+# ("kupfer_rose"), the label ("Kupfer Rosé") has to be looked up separately.
+# Both instances enable de_DE; only ML additionally has en_US.
+AKENEO_LABEL_LOCALE: Final = "de_DE"
+
+# Placeholder options of the "color" attribute meaning "no color recorded".
+# They sit on ~3300 of the ~14700 MK products, so leaving them in would ship
+# ProductNames like "DKF 1 keine Angabe" to DHL. Matched by option *code* — a
+# label-substring heuristic would eventually swallow a real color.
+AKENEO_COLOR_PLACEHOLDER_CODES: Final[frozenset[str]] = frozenset(
+    {
+        "empty",  # "keine Angabe"
+        "Nicht_zutreffend",  # "Nicht zutreffend"
+    }
+)
 
 # Plenty StockLimitation classification
 STOCK_LIMITATION_ARTICLE: Final = (0, 1)

@@ -22,7 +22,7 @@ import httpx
 import respx
 import structlog
 
-from dhl2mh.mapping import SERVICE_AG
+from dhl2mh.mapping import COLOR_GROUP_ID, SERVICE_AG
 from dhl2mh.pipeline import run_pipeline
 
 FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
@@ -144,6 +144,30 @@ def _synthetic_skip_order() -> dict:
     }
 
 
+def _sw_product_handler(request: httpx.Request) -> httpx.Response:
+    """Shopware product search: every article gets manufacturerNumber + color.
+
+    Without this the articles would carry no model name from either source and
+    the new ``require_model_names`` gate would skip every order — these tests
+    are about the rest of the pipeline, so they need the fallback to work.
+    """
+    pn = json.loads(request.content)["filter"][0]["value"]
+    return httpx.Response(
+        200,
+        json={
+            "data": [
+                {
+                    "id": pn,
+                    "productNumber": pn,
+                    "manufacturerNumber": f"MN-{pn}",
+                    "categoryIds": [],
+                    "properties": [{"name": "Schwarz", "groupId": COLOR_GROUP_ID}],
+                }
+            ]
+        },
+    )
+
+
 def _to_jsonable(obj):
     """Walk the dict and convert Decimal → str so respx can json-encode it."""
     if isinstance(obj, Decimal):
@@ -194,9 +218,7 @@ async def test_pipeline_smoke_runs_end_to_end(settings):
         router.post(f"{sw_base}/api/oauth/token").respond(
             200, json={"access_token": "sw-tok", "expires_in": 600}
         )
-        router.post(f"{sw_base}/api/search/product").respond(
-            200, json={"data": []}  # no categories needed for these orders
-        )
+        router.post(f"{sw_base}/api/search/product").mock(side_effect=_sw_product_handler)
         router.post(f"{sw_base}/api/search/order").respond(
             200, json={"data": []}  # no SW order → keep the Plenty-seeded value
         )
@@ -267,7 +289,7 @@ async def test_pipeline_dry_run_uploads_but_skips_plenty_and_mail(settings):
         router.post(f"{sw_base}/api/oauth/token").respond(
             200, json={"access_token": "sw-tok", "expires_in": 600}
         )
-        router.post(f"{sw_base}/api/search/product").respond(200, json={"data": []})
+        router.post(f"{sw_base}/api/search/product").mock(side_effect=_sw_product_handler)
         router.post(f"{sw_base}/api/search/order").respond(200, json={"data": []})
 
         dhl_base = settings.dhl_base_url
@@ -329,7 +351,7 @@ async def test_pipeline_logs_per_order_skip_reason_and_missing_labels(settings):
         router.post(f"{sw_base}/api/oauth/token").respond(
             200, json={"access_token": "sw-tok", "expires_in": 600}
         )
-        router.post(f"{sw_base}/api/search/product").respond(200, json={"data": []})
+        router.post(f"{sw_base}/api/search/product").mock(side_effect=_sw_product_handler)
         router.post(f"{sw_base}/api/search/order").respond(200, json={"data": []})
 
         dhl_base = settings.dhl_base_url
@@ -358,6 +380,236 @@ async def test_pipeline_logs_per_order_skip_reason_and_missing_labels(settings):
 
 async def _no_sleep(_seconds):
     return None
+
+
+def _akeneo_product(modell: str, color: str | None = None) -> dict:
+    values: dict[str, list[dict]] = {
+        "modell": [{"locale": None, "scope": None, "data": modell}]
+    }
+    if color is not None:
+        values["color"] = [{"locale": None, "scope": None, "data": color}]
+    return {"_embedded": {"items": [{"identifier": "400251", "values": values}]}}
+
+
+def _mock_common_routes(router, settings, *, sw_knows_product: bool = True) -> None:
+    """Plenty + Shopware + DHL routes shared by the Akeneo pipeline tests.
+
+    Only the synthetic clean order (900001, article 5050) is fetched. Shopware
+    supplies the fallback name (``MN-5050 Schwarz``) unless ``sw_knows_product``
+    is False, which is the "no model number anywhere" case.
+    """
+    plenty_base = settings.plenty.base_url
+    router.post(f"{plenty_base}/rest/login").respond(200, json={"access_token": "tok"})
+    router.get(f"{plenty_base}/rest/orders/shipping/countries").respond(
+        200, json=[{"id": 1, "isoCode2": "DE"}]
+    )
+    router.get(f"{plenty_base}/rest/orders/search").respond(
+        200,
+        json={"isLastPage": True, "entries": [_to_jsonable(_synthetic_clean_order())]},
+    )
+    router.post(f"{plenty_base}/rest/orders/900001/shipping/packages").respond(200, json={})
+
+    sw_base = settings.shopware.base_url
+    router.post(f"{sw_base}/api/oauth/token").respond(
+        200, json={"access_token": "sw-tok", "expires_in": 600}
+    )
+    product = router.post(f"{sw_base}/api/search/product")
+    if sw_knows_product:
+        product.mock(side_effect=_sw_product_handler)
+    else:
+        product.respond(200, json={"data": []})
+    router.post(f"{sw_base}/api/search/order").respond(200, json={"data": []})
+
+    dhl_base = settings.dhl_base_url
+    router.get(f"{dhl_base}/transmissionStatus/{settings.dhl_username}").respond(
+        200, content=_SAMPLE_LABEL_XML
+    )
+
+
+async def test_akeneo_model_and_color_become_the_dhl_product_name(akeneo_settings):
+    """The ProductName in the uploaded XML comes from the PIM, not from Plenty."""
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        _mock_common_routes(router, settings)
+
+        mk = settings.akeneomk.base_url
+        router.post(f"{mk}/api/oauth/v1/token").respond(
+            200, json={"access_token": "mk-tok", "expires_in": 3600}
+        )
+        router.get(f"{mk}/api/rest/v1/products").respond(
+            200, json=_akeneo_product("UG 5005-30", color="kupfer_rose")
+        )
+        router.get(f"{mk}/api/rest/v1/attributes/color/options/kupfer_rose").respond(
+            200, json={"labels": {"de_DE": "Kupfer Rose"}}
+        )
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>UG 5005-30 Kupfer Rose</ProductName>" in xml
+    assert "Standalone-Artikel" not in xml  # the Plenty name is gone
+    assert "MN-5050" not in xml  # nor the Shopware fallback
+
+
+async def test_akeneo_outage_falls_back_to_shopware_and_still_uploads(akeneo_settings):
+    """A PIM failure costs the better name, not the run."""
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        _mock_common_routes(router, settings)
+
+        for base in (settings.akeneomk.base_url, settings.akeneoml.base_url):
+            router.post(f"{base}/api/oauth/v1/token").respond(500, text="pim down")
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>MN-5050 Schwarz</ProductName>" in xml
+
+
+async def test_article_unknown_to_every_pim_keeps_the_shopware_name(akeneo_settings):
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        _mock_common_routes(router, settings)
+
+        for base in (settings.akeneomk.base_url, settings.akeneoml.base_url):
+            router.post(f"{base}/api/oauth/v1/token").respond(
+                200, json={"access_token": "tok", "expires_in": 3600}
+            )
+            router.get(f"{base}/api/rest/v1/products").respond(
+                200, json={"_embedded": {"items": []}}
+            )
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        await run_pipeline(settings)
+
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>MN-5050 Schwarz</ProductName>" in xml
+
+
+async def test_order_is_skipped_when_no_source_has_a_model_number(akeneo_settings):
+    """Neither PIM nor Shopware knows the article → do not transmit it.
+
+    The order must not reach DHL, must appear in the report mail with a reason,
+    and must be named in the log.
+    """
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP") as smtp_cls,
+        patch("asyncio.sleep", new=_no_sleep),
+        structlog.testing.capture_logs() as logs,
+    ):
+        smtp_client = MagicMock()
+        smtp_cls.return_value.__enter__.return_value = smtp_client
+
+        _mock_common_routes(router, settings, sw_knows_product=False)
+
+        for base in (settings.akeneomk.base_url, settings.akeneoml.base_url):
+            router.post(f"{base}/api/oauth/v1/token").respond(
+                200, json={"access_token": "tok", "expires_in": 3600}
+            )
+            router.get(f"{base}/api/rest/v1/products").respond(
+                200, json={"_embedded": {"items": []}}
+            )
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    # Nothing transmitted.
+    assert dhl_upload.call_count == 0
+    assert summary.uploaded == 0
+    assert summary.skipped == 1
+
+    # Named in the log, with the stage and the reason.
+    skip_events = [e for e in logs if e["event"] == "pipeline.order_skipped"]
+    assert any(
+        e["order_id"] == 900001
+        and e["stage"] == "model_name"
+        and "Modellnummer" in e["reason"]
+        for e in skip_events
+    )
+
+    # And in the report mail.
+    smtp_cls.assert_called_once()
+    body = smtp_client.send_message.call_args[0][0].get_content()
+    assert "900001" in body
+    assert "Modellnummer" in body
+
+
+async def test_akeneo_model_alone_satisfies_the_requirement(akeneo_settings):
+    """Shopware knows nothing, but the PIM has a modell → order still ships."""
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        _mock_common_routes(router, settings, sw_knows_product=False)
+
+        mk = settings.akeneomk.base_url
+        router.post(f"{mk}/api/oauth/v1/token").respond(
+            200, json={"access_token": "tok", "expires_in": 3600}
+        )
+        router.get(f"{mk}/api/rest/v1/products").respond(
+            200, json=_akeneo_product("K 7347 C")
+        )
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>K 7347 C</ProductName>" in xml
+
+
+async def test_pipeline_without_akeneo_config_skips_the_pim_entirely(settings):
+    """An install that leaves the Akeneo vars empty behaves exactly as before."""
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+        structlog.testing.capture_logs() as logs,
+    ):
+        _mock_common_routes(router, settings)
+        router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1
+    assert any(e["event"] == "pipeline.akeneo_disabled" for e in logs)
 
 
 async def test_pipeline_with_no_orders_sends_no_mail_and_does_not_upload(settings):

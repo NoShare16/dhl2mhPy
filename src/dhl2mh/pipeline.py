@@ -12,20 +12,22 @@ from typing import NamedTuple
 
 import structlog
 
+from dhl2mh.akeneo_mapping import akeneo_model_name
+from dhl2mh.clients.akeneo import AkeneoProductLookup
 from dhl2mh.clients.dhl import DhlClient
 from dhl2mh.clients.plenty import PlentyClient
 from dhl2mh.clients.shopware import ShopwareClient
 from dhl2mh.config import Settings, get_settings
-from dhl2mh.filter import filter_orders
+from dhl2mh.filter import filter_orders, require_model_names
 from dhl2mh.mapper import map_order
 from dhl2mh.mapping import STOCK_LIMITATION_ARTICLE
-from dhl2mh.models import PackageData, PlentyOrder, SkippedOrder
+from dhl2mh.models import OrderItem, PackageData, PlentyOrder, SkippedOrder
 from dhl2mh.notifications import send_skipped_orders_report
 from dhl2mh.service_resolver import resolve_orders
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
     assign_water_connection,
-    product_display_name,
+    product_model_name,
     require_service_former_parent_ids,
 )
 from dhl2mh.xml_builder import OrderXmlBuilder
@@ -99,13 +101,29 @@ async def run_pipeline(
                 skipped=len(fp.skipped) + len(filtered.skipped),
             )
 
-        # 6. Shopware product enrichment (parallel): categories + ProductName
+        # 6. Shopware product enrichment (parallel): categories + fallback name
         await _enrich_from_shopware_product(
             filtered.passed, shopware, concurrency=category_concurrency
         )
 
+        # 6b. Akeneo PIM: the ProductName actually sent to DHL. Overrides the
+        # Shopware-derived name wherever the PIM knows the article; anything the
+        # PIM cannot answer keeps what step 6 produced.
+        await _enrich_from_akeneo(
+            filtered.passed, settings, concurrency=category_concurrency
+        )
+
+        # 6c. Skip orders whose articles have no model name from either source.
+        names = require_model_names(filtered.passed)
+        log.info(
+            "pipeline.model_names",
+            passed=len(names.passed),
+            skipped=len(names.skipped),
+        )
+        _log_skipped("model_name", names.skipped)
+
         # 7. Resolve services (MatchCodes, SWG auto-add, VPR auto-add)
-        resolved = resolve_orders(filtered.passed)
+        resolved = resolve_orders(names.passed)
         log.info(
             "pipeline.resolved",
             passed=len(resolved.passed),
@@ -179,7 +197,11 @@ async def run_pipeline(
             _order_to_skipped(o, LABEL_MISSING_REASON) for o in missing_label_orders
         ]
         _maybe_send_report(
-            filtered.skipped + fp.skipped + resolved.skipped + missing_label_reports,
+            filtered.skipped
+            + fp.skipped
+            + names.skipped
+            + resolved.skipped
+            + missing_label_reports,
             settings,
             dry_run=dry_run,
         )
@@ -189,7 +211,12 @@ async def run_pipeline(
             uploaded=uploaded,
             labels_received=len(labels),
             tracking_pushed=tracking_pushed,
-            skipped=len(filtered.skipped) + len(fp.skipped) + len(resolved.skipped),
+            skipped=(
+                len(filtered.skipped)
+                + len(fp.skipped)
+                + len(names.skipped)
+                + len(resolved.skipped)
+            ),
         )
 
 
@@ -226,25 +253,82 @@ def _log_skipped(stage: str, skipped: list[SkippedOrder]) -> None:
         )
 
 
+def _articles(orders: list[PlentyOrder]) -> list[OrderItem]:
+    """Every article position across the orders (services excluded)."""
+    return [
+        item
+        for order in orders
+        for item in order.order_items
+        if item.stock_limitation in STOCK_LIMITATION_ARTICLE
+    ]
+
+
+async def _enrich_from_akeneo(
+    orders: list[PlentyOrder],
+    settings: Settings,
+    *,
+    concurrency: int,
+) -> None:
+    """Set the DHL ProductName from the Akeneo PIM: ``modell`` + color label.
+
+    Queries the configured instances by plenty_varianten_id (MK first, then ML).
+    Best-effort by design: an unconfigured or unreachable PIM leaves the
+    Shopware-derived names in place instead of failing the run, because the
+    fallback name is still a usable one.
+    """
+    if not settings.akeneo_instances:
+        log.info("pipeline.akeneo_disabled")
+        return
+
+    articles = _articles(orders)
+    if not articles:
+        return
+    variation_ids = {item.id for item in articles}
+    log.info(
+        "pipeline.enriching_from_akeneo",
+        articles=len(variation_ids),
+        instances=[name for name, _ in settings.akeneo_instances],
+    )
+
+    try:
+        async with AkeneoProductLookup(settings) as pim:
+            infos = await pim.get_product_infos_bulk(variation_ids, concurrency=concurrency)
+    except Exception as e:
+        log.error("pipeline.akeneo_enrichment_failed", error=str(e))
+        return
+
+    for item in articles:
+        info = infos.get(str(item.id))
+        if info is None:
+            continue
+        name = akeneo_model_name(info)
+        if name:
+            item.name = name
+            item.has_model_name = True
+
+    log.info(
+        "pipeline.akeneo_matched",
+        matched=len(infos),
+        articles=len(variation_ids),
+    )
+
+
 async def _enrich_from_shopware_product(
     orders: list[PlentyOrder],
     shopware: ShopwareClient,
     *,
     concurrency: int,
 ) -> None:
-    """Enrich each article from its Shopware product: categories + ProductName.
+    """Enrich each article from its Shopware product: categories + fallback name.
 
-    Categories feed the Herde/IS decision in the resolver; the name is rebuilt
-    from manufacturerNumber + color, falling back to the Plenty order_item_name
-    when either is missing (see ``product_display_name``). Articles not found in
-    Shopware keep their Plenty-seeded values.
+    Categories feed the Herde/IS decision in the resolver; the name is built
+    from manufacturerNumber + color and only set when **both** are present (see
+    ``product_model_name``). Articles not found in Shopware keep their
+    Plenty-seeded values. The name set here is the *fallback* —
+    ``_enrich_from_akeneo`` overrides it wherever the PIM answers, and an
+    article left without either ends up skipped in step 6c.
     """
-    articles = [
-        item
-        for o in orders
-        for item in o.order_items
-        if item.stock_limitation in STOCK_LIMITATION_ARTICLE
-    ]
+    articles = _articles(orders)
     if not articles:
         return
     article_ids = {item.id for item in articles}
@@ -255,7 +339,10 @@ async def _enrich_from_shopware_product(
         if info is None:
             continue
         item.categories = info.category_ids
-        item.name = product_display_name(info, fallback=item.name)
+        name = product_model_name(info)
+        if name:
+            item.name = name
+            item.has_model_name = True
 
 
 async def _enrich_from_shopware_order(
