@@ -18,6 +18,33 @@ class ShopwareSettings(BaseModel):
     base_url: str = "https://mykitchens.de"
 
 
+class AkeneoInstanceSettings(BaseModel):
+    """Client credentials for one Akeneo PIM instance (MK or ML).
+
+    Empty values mean "not configured": that instance is then skipped and the
+    article keeps the Shopware-derived product name.
+    """
+
+    base_url: str = ""
+    client_id: str = ""
+    secret: str = ""
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.base_url and self.client_id and self.secret)
+
+
+class AkeneoSettings(BaseModel):
+    """Username/password shared by both PIM instances (OAuth password grant)."""
+
+    username: str = ""
+    password: str = ""
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.username and self.password)
+
+
 class DhlSettings(BaseModel):
     uat_username: str
     uat_password: str
@@ -74,6 +101,27 @@ class Settings(BaseSettings):
     dhl: DhlSettings
     smtp: SmtpSettings
     web: WebSettings = WebSettings()
+
+    # Akeneo PIM — optional. Shared credentials plus one client per instance,
+    # so an install that leaves these empty simply keeps the Shopware name.
+    akeneo: AkeneoSettings = AkeneoSettings()
+    akeneomk: AkeneoInstanceSettings = AkeneoInstanceSettings()
+    akeneoml: AkeneoInstanceSettings = AkeneoInstanceSettings()
+
+    @property
+    def akeneo_instances(self) -> list[tuple[str, AkeneoInstanceSettings]]:
+        """Configured PIM instances in lookup order: MK first, then ML.
+
+        Empty when the shared credentials are missing or no instance is
+        configured — the Akeneo enrichment is then skipped entirely.
+        """
+        if not self.akeneo.configured:
+            return []
+        return [
+            (name, instance)
+            for name, instance in (("MK", self.akeneomk), ("ML", self.akeneoml))
+            if instance.configured
+        ]
 
     @property
     def dhl_username(self) -> str:
