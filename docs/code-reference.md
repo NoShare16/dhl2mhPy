@@ -18,15 +18,15 @@ siehe ergänzend [`logik-dokumentation.md`](./logik-dokumentation.md).
 10. [`filter.py` — Versandfilter](#10-filterpy--versandfilter)
 11. [`service_resolver.py` — Service-Auflösung](#11-service_resolverpy--service-auflösung)
 12. [`shopware_mapping.py` — Shopware-Anreicherung](#12-shopware_mappingpy--shopware-anreicherung)
-12b. [`akeneo_mapping.py` — PIM-Name](#12b-akeneo_mappingpy--pim-name)
-13. [`xml_builder.py` — DHL-XML](#13-xml_builderpy--dhl-xml)
-14. [`pipeline.py` — Orchestrierung](#14-pipelinepy--orchestrierung)
-15. [`cli.py` — Kommandozeile](#15-clipy--kommandozeile)
-16. [`web.py` — Manueller Web-Trigger](#16-webpy--manueller-web-trigger)
-17. [`notifications.py` — Report-Mail](#17-notificationspy--report-mail)
-18. [`logging_setup.py` — Logging](#18-logging_setuppy--logging)
-19. [Tests](#19-tests)
-20. [Betrieb & Ausführung](#20-betrieb--ausführung)
+13. [`akeneo_mapping.py` — PIM-Name](#13-akeneo_mappingpy--pim-name)
+14. [`xml_builder.py` — DHL-XML](#14-xml_builderpy--dhl-xml)
+15. [`pipeline.py` — Orchestrierung](#15-pipelinepy--orchestrierung)
+16. [`cli.py` — Kommandozeile](#16-clipy--kommandozeile)
+17. [`web.py` — Manueller Web-Trigger](#17-webpy--manueller-web-trigger)
+18. [`notifications.py` — Report-Mail](#18-notificationspy--report-mail)
+19. [`logging_setup.py` — Logging](#19-logging_setuppy--logging)
+20. [Tests](#20-tests)
+21. [Betrieb & Ausführung](#21-betrieb--ausführung)
 
 ---
 
@@ -36,9 +36,10 @@ siehe ergänzend [`logik-dokumentation.md`](./logik-dokumentation.md).
 Aufruf **einen** Durchlauf aus (für Cron gedacht):
 
 > Plenty-Aufträge holen → auf Domain-Modell mappen → mit Shopware anreichern →
-> filtern → Produktnamen aus dem Akeneo-PIM holen → Services auflösen →
-> DHL-DeliverIT-XML bauen & hochladen → auf Labels warten → Tracking-Nummer nach
-> Plenty zurückschreiben → Report-Mail für übersprungene Aufträge.
+> filtern → Produktnamen aus dem Akeneo-PIM holen → Aufträge ohne Modellnummer
+> aussortieren → Services auflösen → DHL-DeliverIT-XML bauen & hochladen → auf
+> Labels warten → Tracking-Nummer nach Plenty zurückschreiben → Report-Mail für
+> übersprungene Aufträge.
 
 **Tech-Stack:** Python ≥ 3.12, `httpx` (async HTTP), `pydantic` / `pydantic-settings`
 (Modelle & Config), `typer` (CLI), `lxml` (XML), `structlog` (Logging),
@@ -123,7 +124,7 @@ Pydantic-Settings, geladen aus `.env` (verschachtelt mit Trenner `__`).
   `DhlSettings` (uat_/prod_ username/password/base_url, `label_wait_seconds=180`,
   `uat_/prod_sender_partner_id` = `1`/`3`), `SmtpSettings`,
   `WebSettings` (username/password/secret_key — leer = Web-Trigger deaktiviert,
-  siehe Abschnitt 16),
+  siehe Abschnitt 17),
   `AkeneoSettings` (username/password — von **beiden** PIM-Instanzen geteilt) und
   je Instanz `AkeneoInstanceSettings` (base_url/client_id/secret).
 - **`akeneo_instances`** — die konfigurierten PIM-Instanzen in Abfragereihenfolge
@@ -398,7 +399,7 @@ Reine Funktionen (API-entkoppelt, gut testbar):
 - **`product_model_name(info)`** → **Fallback**-`ProductName` aus
   `manufacturerNumber` + Farbe (`COLOR_GROUP_ID`), sonst `None`. Nur wenn
   **beide** vorhanden sind, wird kombiniert. Bewusst **kein** Rückfall auf den
-  Plenty-Namen: fehlt hier und bei Akeneo (Abschnitt 12b) etwas, wird der
+  Plenty-Namen: fehlt hier und bei Akeneo (Abschnitt 13) etwas, wird der
   Auftrag geskippt (`require_model_names`).
 - **`require_service_former_parent_ids(orders)`** → `FormerParentResult`; skippt
   Aufträge, deren echte Services kein `former_parent_id` haben.
@@ -407,7 +408,7 @@ Details siehe Logik-Doku (Abschnitte 3–7).
 
 ---
 
-## 12b. `akeneo_mapping.py` — PIM-Name
+## 13. `akeneo_mapping.py` — PIM-Name
 
 - **`akeneo_model_name(info)`** → DHL-`ProductName` aus dem PIM-Attribut
   `modell` + Farb-Label, z. B. `UG 5005-30 Schwarz`, sonst `None`.
@@ -422,7 +423,7 @@ Stichprobe von 3.000 MK-Produkten unterschieden sich beide in 2.634 Fällen.
 
 ---
 
-## 13. `xml_builder.py` — DHL-XML
+## 14. `xml_builder.py` — DHL-XML
 
 `OrderXmlBuilder` (stateless) baut die DSI/it4logistics-XML
 (`build(order) -> bytes`). Konstruktor-Parameter sind die Umgebungs-Schalter
@@ -438,13 +439,14 @@ eigene Items ausgegeben — sie stecken in `service_match_codes` des Artikels.
 
 ---
 
-## 14. `pipeline.py` — Orchestrierung
+## 15. `pipeline.py` — Orchestrierung
 
 `run_pipeline(settings=None, *, items_per_page=50, category_concurrency=5,
 dry_run=False)` → `PipelineSummary(fetched, uploaded, labels_received,
 tracking_pushed, skipped)`.
 
-Die 11 Schritte siehe Abschnitt 2. Besonderheiten:
+Ablauf siehe Abschnitt 2, durchnummeriert in der Logik-Doku (Abschnitt 14):
+11 Hauptschritte plus die beiden Zwischenschritte 6b und 6c. Besonderheiten:
 
 - **Schritt 3+4 vor dem Filter:** Shopware-Anreicherung (former_parent + Festwasser,
   parallel mit Semaphore) und der Pflichtfeld-Skip laufen **vor** dem Filter,
@@ -460,7 +462,9 @@ Die 11 Schritte siehe Abschnitt 2. Besonderheiten:
 - **Robustheit:** ein fehlschlagender Tracking-Push bricht den Lauf nicht ab;
   ein Mail-Fehler ebenfalls nicht. Auch die PIM-Anreicherung ist
   **best-effort** — ein Fehler wird als `pipeline.akeneo_enrichment_failed`
-  geloggt und lässt die Shopware-Namen stehen, statt den Lauf zu kippen.
+  geloggt und lässt die Shopware-Namen stehen, statt den Lauf zu kippen. Bei
+  PIM-Ausfall verschiebt sich die Last damit auf Schritt 6c: Artikel, für die
+  auch Shopware nichts hat, sortieren ihren Auftrag aus.
 
 Helper: `_articles`, `_enrich_from_shopware_order`, `_enrich_from_shopware_product`
 (Kategorien + Fallback-Name), `_enrich_from_akeneo` (`ProductName`),
@@ -468,7 +472,7 @@ Helper: `_articles`, `_enrich_from_shopware_order`, `_enrich_from_shopware_produ
 
 ---
 
-## 15. `cli.py` — Kommandozeile
+## 16. `cli.py` — Kommandozeile
 
 Typer-App. Ein leerer `@app.callback()` hält die App im Multi-Command-Modus,
 damit `run` ein benannter Unterbefehl bleibt (sonst lehnt Typer das `run`-Argument
@@ -482,7 +486,7 @@ dhl2mh run [--items-per-page N] [--concurrency N] [--log-level LVL] [--dry-run]
 
 ---
 
-## 16. `web.py` — Manueller Web-Trigger
+## 17. `web.py` — Manueller Web-Trigger
 
 **Optional** — nur aktiv, wenn `WEB__USERNAME` und `WEB__PASSWORD` gesetzt sind
 (leer = reiner Cron-Betrieb). Extra `pip install -e ".[web]"` (FastAPI + uvicorn).
@@ -512,7 +516,7 @@ Betrieb via `deploy/dhl2mh-web.service` (systemd, lauscht nur auf
 
 ---
 
-## 17. `notifications.py` — Report-Mail
+## 18. `notifications.py` — Report-Mail
 
 `send_skipped_orders_report(skipped, settings, *, now=None)` — verschickt eine
 deutschsprachige Klartext-Mail (SMTP + STARTTLS + Login) an
@@ -522,7 +526,7 @@ Body listet pro Auftrag ID, Datum, Kunde, Artikelzahl und Skip-Grund
 
 ---
 
-## 18. `logging_setup.py` — Logging
+## 19. `logging_setup.py` — Logging
 
 `setup_logging(level="INFO", *, json=None)` konfiguriert `structlog`.
 `json=None` erkennt automatisch: **Console-Renderer** (farbig) auf einem TTY
@@ -530,7 +534,7 @@ Body listet pro Auftrag ID, Datum, Kunde, Artikelzahl und Skip-Grund
 
 ---
 
-## 19. Tests
+## 20. Tests
 
 `pytest` (async) mit `respx` für HTTP-Mocks; `tests/fixtures/` enthält reale
 Beispiel-Responses. Abdeckung pro Modul:
@@ -547,7 +551,7 @@ Beispiel-Responses. Abdeckung pro Modul:
 | `test_filter.py` | Skip-Regeln inkl. Modellnummer-Pflicht |
 | `test_service_resolver.py` | Service-Auflösung, Rabatt-Ignorierung |
 | `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, Pflichtfeld-Skip |
-| `test_akeneo_mapping.py` | ProductName aus modell + Farbe, Fallback-Kette, `AkeneoProduct.scalar` |
+| `test_akeneo_mapping.py` | ProductName aus modell + Farbe, fehlendes modell → `None`, `AkeneoProduct.scalar` |
 | `test_xml_builder.py` | DHL-XML |
 | `test_notifications.py` | Report-Mail |
 | `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML, PIM-Ausfall, Skip ohne Modellnummer |
@@ -557,7 +561,7 @@ Ausführen: `python -m pytest -q`.
 
 ---
 
-## 20. Betrieb & Ausführung
+## 21. Betrieb & Ausführung
 
 ```bash
 python -m dhl2mh run               # UAT (APP_ENV=dev), voller Lauf
