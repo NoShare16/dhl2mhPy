@@ -20,13 +20,14 @@ from dhl2mh.clients.shopware import ShopwareClient
 from dhl2mh.config import Settings, get_settings
 from dhl2mh.filter import filter_orders, require_model_names
 from dhl2mh.mapper import map_order
-from dhl2mh.mapping import STOCK_LIMITATION_ARTICLE
+from dhl2mh.mapping import SECOND_CHOICE_PREFIX, STOCK_LIMITATION_ARTICLE
 from dhl2mh.models import OrderItem, PackageData, PlentyOrder, SkippedOrder
 from dhl2mh.notifications import send_skipped_orders_report
 from dhl2mh.service_resolver import resolve_orders
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
     assign_water_connection,
+    is_second_choice,
     product_model_name,
     require_service_former_parent_ids,
 )
@@ -113,7 +114,13 @@ async def run_pipeline(
             filtered.passed, settings, concurrency=category_concurrency
         )
 
-        # 6c. Skip orders whose articles have no model name from either source.
+        # 6c. Mark second-choice articles. Runs after both name sources so the
+        # "[ZW]" prefix survives whichever of them won.
+        marked = _apply_second_choice_prefix(filtered.passed)
+        if marked:
+            log.info("pipeline.second_choice_marked", articles=marked)
+
+        # 6d. Skip orders whose articles have no model name from either source.
         names = require_model_names(filtered.passed)
         log.info(
             "pipeline.model_names",
@@ -263,6 +270,24 @@ def _articles(orders: list[PlentyOrder]) -> list[OrderItem]:
     ]
 
 
+def _apply_second_choice_prefix(orders: list[PlentyOrder]) -> int:
+    """Prefix the ProductName of every second-choice article with "[ZW]".
+
+    Must run after both name sources (Shopware product, Akeneo PIM), because
+    either of them overwrites ``name`` wholesale. The B-Ware flag itself comes
+    from Shopware only. Returns the number of articles marked.
+    """
+    marked = 0
+    for item in _articles(orders):
+        if not item.second_choice or not item.name:
+            continue
+        if item.name.startswith(SECOND_CHOICE_PREFIX):
+            continue
+        item.name = f"{SECOND_CHOICE_PREFIX} {item.name}"
+        marked += 1
+    return marked
+
+
 async def _enrich_from_akeneo(
     orders: list[PlentyOrder],
     settings: Settings,
@@ -339,6 +364,7 @@ async def _enrich_from_shopware_product(
         if info is None:
             continue
         item.categories = info.category_ids
+        item.second_choice = is_second_choice(info)
         name = product_model_name(info)
         if name:
             item.name = name

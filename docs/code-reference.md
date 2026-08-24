@@ -59,7 +59,7 @@ Der gesamte Lauf ist async und nutzt je einen Client pro Workflow
 PlentyClient.iter_orders ─► map_order ─► _enrich_from_shopware_order
    ─► require_service_former_parent_ids ─► filter_orders
    ─► _enrich_from_shopware_product ─► _enrich_from_akeneo
-   ─► require_model_names ─► resolve_orders
+   ─► _apply_second_choice_prefix ─► require_model_names ─► resolve_orders
    ─► OrderXmlBuilder.build ─► DhlClient.upload_order_xml
    ─► (warten) ─► DhlClient.get_labels ─► PlentyClient.update_package
    ─► send_skipped_orders_report
@@ -162,9 +162,11 @@ Drei Gruppen. Alle API-Modelle erben von `_ApiModel`
 - `SwPropertyOption` — `name`, `group_id` (Property-Werte, z. B. „Wasseranschluss")
 - `SwProduct` — `product_number`, `properties` (null-tolerant via `field_validator`)
 - `SwProductInfo` — flaches `/api/search/product`-Ergebnis: `product_number`,
-  `manufacturer_number`, `category_ids`, `properties`; `color(group_id)` liefert
-  den Namen der Farb-Property. Basis für Kategorien **und** den *Fallback*-Namen
-  (den primären `ProductName` liefert Akeneo, siehe 5.2b).
+  `manufacturer_number`, `category_ids`, `tag_ids`, `properties`;
+  `color(group_id)` liefert den Namen der Farb-Property. Basis für Kategorien,
+  den *Fallback*-Namen (den primären `ProductName` liefert Akeneo, siehe 5.2b)
+  und die B-Ware-Erkennung über `tag_ids` — die flache Antwort liefert `tagIds`
+  ohne angeforderte Assoziation mit.
 - `SwOrderLineItem` — `type`, `label`, `referenced_id`, `product_id`, `quantity`,
   `payload`, `product`. `quantity` ist die Menge **dieses** Line-Items — beim
   1:n-Split (Abschnitt 12) wird sie zur Menge der aufgeteilten Plenty-Position.
@@ -189,8 +191,9 @@ einen Eintrag.
 - **`OrderItem`** — eine Position. Enthält u. a. `id` (= itemVariationId),
   `stock_limitation`, `bundle_id` (Property 1021), `former_parent_id`,
   `festwasser`, `has_model_name` (steht `name` eine echte Modellbezeichnung —
-  aus Akeneo oder Shopware — gegenüber dem bloßen Plenty-Namen?), sowie die im
-  Filter/Resolver befüllten Felder
+  aus Akeneo oder Shopware — gegenüber dem bloßen Plenty-Namen?),
+  `second_choice` (Shopware-Tag „B-Ware" → `[ZW]`-Präfix im `ProductName`),
+  sowie die im Filter/Resolver befüllten Felder
   `service_ids`, `service_match_codes`, `categories`, `weight_kg`, `volume_cbm`.
   Ein `model_validator` setzt `former_parent_id` per Default auf `bundle_id`.
   `quantity`/`packages` können beim 1:n-Split überschrieben werden (Abschnitt 12).
@@ -224,9 +227,11 @@ Alle: ein Client pro Lauf, als `async with`, eigener `httpx.AsyncClient`.
   Header: `Authorization: Bearer …` **und** `sw-access-key`.
 - **`get_product_info(product_number)`** / **`get_product_infos_bulk(..., concurrency=5)`**
   → `SwProductInfo` je Produkt (`POST /api/search/product`, Filter `productNumber`,
-  `associations: {categories, properties}`). Liefert Kategorie-IDs **und** die
-  Felder für den Fallback-Namen (`manufacturerNumber` + Farbe). Nicht gefundene
-  Produkte fehlen im Bulk-Ergebnis (Aufrufer behält dann die Plenty-Werte).
+  `associations: {categories, properties}`). Liefert Kategorie-IDs, die Felder
+  für den Fallback-Namen (`manufacturerNumber` + Farbe) und `tagIds` (B-Ware) —
+  Letztere ohne eigene Assoziation, die flache Antwort führt sie als normales
+  Feld. Nicht gefundene Produkte fehlen im Bulk-Ergebnis (Aufrufer behält dann
+  die Plenty-Werte).
 - **`get_order(order_number)`** → `SwOrder | None`. `POST /api/search/order` mit
   LineItems + Produkt-Properties (siehe Logik-Doku Abschnitt 3). Fehler werden
   **geworfen** (das C#-Original verschluckte sie).
@@ -321,6 +326,10 @@ Geteilt von Filter und Resolver.
 - **`WATER_CONNECTION_GROUP_ID`** / **`WATER_CONNECTION_MATCH_CODE="AWS"`**.
 - **`COLOR_GROUP_ID`** — Shopware-Property-Group „Farbe" (nur noch für den
   Fallback-Namen).
+- **`SECOND_CHOICE_TAG_ID`** (`019745bc…`) / **`SECOND_CHOICE_PREFIX="[ZW]"`** —
+  Shopware-Tag „B-Ware" markiert Zweite-Wahl-Artikel; deren `ProductName`
+  bekommt das Präfix vorangestellt. Gematcht nach **Tag-Id**, nicht nach Namen:
+  der Name ist im Admin umbenennbar, die Id nicht.
 - **Akeneo-Attributcodes:** `AKENEO_MODEL_ATTRIBUTE="modell"`,
   `AKENEO_COLOR_ATTRIBUTE="color"`,
   `AKENEO_VARIATION_ID_ATTRIBUTE="plenty_varianten_id"`,
@@ -401,6 +410,9 @@ Reine Funktionen (API-entkoppelt, gut testbar):
   **beide** vorhanden sind, wird kombiniert. Bewusst **kein** Rückfall auf den
   Plenty-Namen: fehlt hier und bei Akeneo (Abschnitt 13) etwas, wird der
   Auftrag geskippt (`require_model_names`).
+- **`is_second_choice(info)`** → `True`, wenn das Shopware-Produkt den Tag
+  „B-Ware" trägt (`SECOND_CHOICE_TAG_ID` in `tag_ids`). Einzige Quelle für das
+  Merkmal — das PIM kennt das Modell, nicht den Zustand der Ware.
 - **`require_service_former_parent_ids(orders)`** → `FormerParentResult`; skippt
   Aufträge, deren echte Services kein `former_parent_id` haben.
 
@@ -446,7 +458,7 @@ dry_run=False)` → `PipelineSummary(fetched, uploaded, labels_received,
 tracking_pushed, skipped)`.
 
 Ablauf siehe Abschnitt 2, durchnummeriert in der Logik-Doku (Abschnitt 14):
-11 Hauptschritte plus die beiden Zwischenschritte 6b und 6c. Besonderheiten:
+11 Hauptschritte plus die Zwischenschritte 6b, 6c und 6d. Besonderheiten:
 
 - **Schritt 3+4 vor dem Filter:** Shopware-Anreicherung (former_parent + Festwasser,
   parallel mit Semaphore) und der Pflichtfeld-Skip laufen **vor** dem Filter,
@@ -457,7 +469,11 @@ Ablauf siehe Abschnitt 2, durchnummeriert in der Logik-Doku (Abschnitt 14):
   überschreibt den in Schritt 6 gesetzten Namen. Aus dieser Reihenfolge ergibt
   sich der Vorrang Akeneo → Shopware von selbst; beide setzen dabei
   `has_model_name`.
-- **Schritt 6c (`require_model_names`):** kippt Aufträge, deren Artikel aus
+- **Schritt 6c (`_apply_second_choice_prefix`):** stellt `[ZW] ` vor den
+  `ProductName` jedes Artikels mit `second_choice`. Läuft **nach** 6 und 6b,
+  weil beide Namensquellen `name` komplett überschreiben — früher gesetzt wäre
+  das Präfix wieder weg. Das Flag selbst kommt aus Schritt 6 (Shopware).
+- **Schritt 6d (`require_model_names`):** kippt Aufträge, deren Artikel aus
   keiner Quelle eine Modellnummer haben. Muss zwingend nach 6b laufen.
 - **Robustheit:** ein fehlschlagender Tracking-Push bricht den Lauf nicht ab;
   ein Mail-Fehler ebenfalls nicht. Auch die PIM-Anreicherung ist
@@ -467,8 +483,8 @@ Ablauf siehe Abschnitt 2, durchnummeriert in der Logik-Doku (Abschnitt 14):
   auch Shopware nichts hat, sortieren ihren Auftrag aus.
 
 Helper: `_articles`, `_enrich_from_shopware_order`, `_enrich_from_shopware_product`
-(Kategorien + Fallback-Name), `_enrich_from_akeneo` (`ProductName`),
-`_maybe_send_report`.
+(Kategorien + Fallback-Name + `second_choice`), `_enrich_from_akeneo`
+(`ProductName`), `_apply_second_choice_prefix` (`[ZW]`), `_maybe_send_report`.
 
 ---
 
@@ -550,11 +566,11 @@ Beispiel-Responses. Abdeckung pro Modul:
 | `test_mapping.py` | MatchCodes, Festwasser/AWS |
 | `test_filter.py` | Skip-Regeln inkl. Modellnummer-Pflicht |
 | `test_service_resolver.py` | Service-Auflösung, Rabatt-Ignorierung |
-| `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, Pflichtfeld-Skip |
+| `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, B-Ware-Tag, Pflichtfeld-Skip |
 | `test_akeneo_mapping.py` | ProductName aus modell + Farbe, fehlendes modell → `None`, `AkeneoProduct.scalar` |
 | `test_xml_builder.py` | DHL-XML |
 | `test_notifications.py` | Report-Mail |
-| `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML, PIM-Ausfall, Skip ohne Modellnummer |
+| `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML, PIM-Ausfall, Skip ohne Modellnummer, `[ZW]`-Präfix |
 | `test_web.py` | Web-Trigger: Login, Session, Single-Slot-Lauf |
 
 Ausführen: `python -m pytest -q`.
