@@ -87,6 +87,13 @@ WATER_CONNECTION_MATCH_CODE: Final = "AWS"
 # shopware_mapping.product_display_name). The primary name comes from Akeneo.
 COLOR_GROUP_ID: Final = "b7c2c23b73454356bec99f10042600eb"
 
+# ── Shopware tag "B-Ware" — a second-choice article. Its DHL ProductName is
+# prefixed with "[ZW]" (Zweite Wahl) so the label shows the goods are not new.
+# Matched by tag *id*: the name is editable in the Shopware admin, the id is
+# not. No association needed — the flat product response carries ``tagIds``.
+SECOND_CHOICE_TAG_ID: Final = "019745bc913a7554aef3d1634e45c2a7"
+SECOND_CHOICE_PREFIX: Final = "[ZW]"
+
 # ── Akeneo PIM attribute codes ─────────────────────────────────────────────
 # The DHL ProductName is built from the "modell" attribute (the readable model
 # designation, e.g. "UG 5005-30") plus the "color" option label. Shopware's

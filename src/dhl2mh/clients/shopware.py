@@ -121,8 +121,9 @@ class ShopwareClient:
         """Fetch a single product (by productNumber) with categories + properties.
 
         Returns ``None`` if no product matches. Carries the category ids (for the
-        Herde/IS decision) as well as the manufacturerNumber + color property the
-        DHL ProductName is built from.
+        Herde/IS decision), the manufacturerNumber + color property the DHL
+        ProductName is built from, and the tagIds that flag B-Ware. The tag ids
+        need no association — the flat response ships them as plain fields.
         """
         pn = str(product_number)
         body = {
