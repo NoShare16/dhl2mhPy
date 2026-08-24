@@ -17,6 +17,7 @@ from typing import NamedTuple
 from dhl2mh.bundles import is_service
 from dhl2mh.mapping import (
     COLOR_GROUP_ID,
+    SECOND_CHOICE_TAG_ID,
     SHOPWARE_PRODUCT_NUMBER_ALIASES,
     WATER_CONNECTION_GROUP_ID,
 )
@@ -147,6 +148,16 @@ def product_model_name(info: SwProductInfo) -> str | None:
     if manufacturer and color:
         return f"{manufacturer} {color}"
     return None
+
+
+def is_second_choice(info: SwProductInfo) -> bool:
+    """True when the Shopware product carries the "B-Ware" tag.
+
+    Second-choice articles ship with a "[ZW]" prefix on their DHL ProductName
+    (see ``pipeline._apply_second_choice_prefix``). Shopware is the only source
+    for this — the Akeneo PIM knows the model, not the condition of the goods.
+    """
+    return SECOND_CHOICE_TAG_ID in info.tag_ids
 
 
 def _water_connection_flag(product: SwProduct) -> bool | None:

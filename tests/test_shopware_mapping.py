@@ -3,7 +3,13 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-from dhl2mh.mapping import COLOR_GROUP_ID, SERVICE_AG, SERVICE_ISEK, SERVICE_ISEK_KG
+from dhl2mh.mapping import (
+    COLOR_GROUP_ID,
+    SECOND_CHOICE_TAG_ID,
+    SERVICE_AG,
+    SERVICE_ISEK,
+    SERVICE_ISEK_KG,
+)
 from dhl2mh.models import (
     OrderItem,
     PlentyOrder,
@@ -17,6 +23,7 @@ from dhl2mh.models import (
 from dhl2mh.shopware_mapping import (
     assign_former_parent_ids,
     assign_water_connection,
+    is_second_choice,
     product_model_name,
     require_service_former_parent_ids,
 )
@@ -406,3 +413,35 @@ def test_product_name_ignores_color_from_other_group():
     info = _product_info(manufacturer="HE517ABW0", color="Elektro", color_group="other")
     assert product_model_name(info) is None
     assert info.color(COLOR_GROUP_ID) is None
+
+
+# ── is_second_choice: the Shopware "B-Ware" tag ──────────────────────────────
+
+
+def test_product_with_b_ware_tag_is_second_choice():
+    info = SwProductInfo(tag_ids=["andere-id", SECOND_CHOICE_TAG_ID])
+    assert is_second_choice(info) is True
+
+
+def test_product_without_b_ware_tag_is_not_second_choice():
+    info = SwProductInfo(tag_ids=["andere-id"])
+    assert is_second_choice(info) is False
+
+
+def test_product_without_any_tag_is_not_second_choice():
+    assert is_second_choice(SwProductInfo()) is False
+
+
+def test_null_tag_ids_do_not_break_the_check():
+    """Shopware sends null when the field is empty."""
+    info = SwProductInfo.model_validate({"tagIds": None})
+    assert info.tag_ids == []
+    assert is_second_choice(info) is False
+
+
+def test_tag_ids_are_read_from_the_flat_response():
+    """tagIds arrives without an association being requested."""
+    info = SwProductInfo.model_validate(
+        {"productNumber": "785134", "tagIds": [SECOND_CHOICE_TAG_ID]}
+    )
+    assert is_second_choice(info) is True
