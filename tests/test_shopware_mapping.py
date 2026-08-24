@@ -46,7 +46,7 @@ def _order(*items: OrderItem) -> PlentyOrder:
 
 
 def _sw_order() -> SwOrder:
-    return SwOrder.model_validate(json.loads(SW_ORDER_FIXTURE.read_text())["data"][0])
+    return SwOrder.model_validate(json.loads(SW_ORDER_FIXTURE.read_text(encoding="utf-8"))["data"][0])
 
 
 def test_assigns_former_parent_id_to_matching_positions():
@@ -327,7 +327,7 @@ def test_missing_water_property_leaves_festwasser_untouched():
 def test_water_connection_from_extended_fixture_is_false_for_nein():
     """Real extended fixture: the Smeg Herd has Wasseranschluss = 'nein'."""
     sw = SwOrder.model_validate(
-        json.loads(SW_ORDER_EXTENDED_FIXTURE.read_text())["data"][0]
+        json.loads(SW_ORDER_EXTENDED_FIXTURE.read_text(encoding="utf-8"))["data"][0]
     )
     order = _order(OrderItem(id=771883))
     assign_water_connection(order, sw)

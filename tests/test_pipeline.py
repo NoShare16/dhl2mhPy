@@ -190,7 +190,7 @@ def _to_jsonable(obj):
 
 
 async def test_pipeline_smoke_runs_end_to_end(settings):
-    fixture_order = json.loads(FIXTURE.read_text())
+    fixture_order = json.loads(FIXTURE.read_text(encoding="utf-8"))
     synthetic = _synthetic_clean_order()
     skip_order = _synthetic_skip_order()
     orders_page = {
@@ -271,7 +271,7 @@ async def test_pipeline_smoke_runs_end_to_end(settings):
 
 
 async def test_pipeline_dry_run_uploads_but_skips_plenty_and_mail(settings):
-    fixture_order = json.loads(FIXTURE.read_text())
+    fixture_order = json.loads(FIXTURE.read_text(encoding="utf-8"))
     synthetic = _synthetic_clean_order()
     orders_page = {
         "isLastPage": True,
@@ -329,7 +329,7 @@ async def test_pipeline_logs_per_order_skip_reason_and_missing_labels(settings):
     and the fixture order is uploaded but gets no label back (the status XML only
     carries 900001), so it must surface as ``pipeline.labels_missing``.
     """
-    fixture_order = json.loads(FIXTURE.read_text())
+    fixture_order = json.loads(FIXTURE.read_text(encoding="utf-8"))
     orders_page = {
         "isLastPage": True,
         "entries": [

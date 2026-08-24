@@ -18,14 +18,14 @@ COUNTRIES = {1: "DE", 2: "AT"}
 
 @pytest.fixture
 def real_order() -> ApiOrder:
-    return ApiOrder.model_validate(json.loads(FIXTURE.read_text()))
+    return ApiOrder.model_validate(json.loads(FIXTURE.read_text(encoding="utf-8")))
 
 
 @pytest.fixture
 def order_783117() -> ApiOrder:
     """Real order MK89576 (id 237553): article + AG service + the 783117 set
     (bundle parent typeId 2) with its components 783143/783147/783148 (typeId 3)."""
-    page = ApiOrderPage.model_validate(json.loads(ORDERS_FIXTURE.read_text()))
+    page = ApiOrderPage.model_validate(json.loads(ORDERS_FIXTURE.read_text(encoding="utf-8")))
     return next(o for o in page.entries if o.id == 237553)
 
 
@@ -155,7 +155,7 @@ def test_article_bundle_parent_kept_and_flagged():
     """Article bundle (Quooker): parent 778101 is a bundle parent (typeId 2),
     components (typeId 3) are dropped. Detection of the unsupported article
     bundle happens later in the filter via is_bundle_parent + stock_limitation."""
-    api = ApiOrder.model_validate(json.loads(ARTICLE_BUNDLE_FIXTURE.read_text()))
+    api = ApiOrder.model_validate(json.loads(ARTICLE_BUNDLE_FIXTURE.read_text(encoding="utf-8")))
     o = map_order(api, COUNTRIES)
     ids = {i.id for i in o.order_items}
     assert 778101 in ids

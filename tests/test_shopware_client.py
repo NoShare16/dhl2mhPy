@@ -13,7 +13,7 @@ SW_PRODUCT_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_prop.json"
 
 
 async def test_get_product_info_parses_categories_name_and_color(settings):
-    product_json = jsonlib.loads(SW_PRODUCT_FIXTURE.read_text())
+    product_json = jsonlib.loads(SW_PRODUCT_FIXTURE.read_text(encoding="utf-8"))
     with respx.mock(base_url=settings.shopware.base_url) as router:
         router.post("/api/oauth/token").respond(
             200, json={"access_token": "tok", "expires_in": 600}
@@ -139,7 +139,7 @@ async def test_login_failure_raises(settings):
 
 
 async def test_get_order_parses_line_items(settings):
-    order_json = jsonlib.loads(SW_ORDER_FIXTURE.read_text())
+    order_json = jsonlib.loads(SW_ORDER_FIXTURE.read_text(encoding="utf-8"))
     with respx.mock(base_url=settings.shopware.base_url) as router:
         router.post("/api/oauth/token").respond(
             200, json={"access_token": "tok", "expires_in": 600}

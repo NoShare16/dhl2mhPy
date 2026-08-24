@@ -80,7 +80,7 @@ def test_multiple_standalone_articles_pass():
 
 
 def test_real_fixture_order_passes(monkeypatch):
-    api = json.loads(FIXTURE.read_text())
+    api = json.loads(FIXTURE.read_text(encoding="utf-8"))
     from dhl2mh.models import ApiOrder
 
     order = map_order(ApiOrder.model_validate(api), {1: "DE"})
