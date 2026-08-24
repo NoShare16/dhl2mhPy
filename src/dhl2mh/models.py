@@ -136,16 +136,19 @@ class SwProductInfo(_ApiModel):
     """Product data from /api/search/product (Accept: application/json, flat shape).
 
     Fetched per article during enrichment. Carries the category ids (for the
-    Herde/IS decision) plus the two fields the DHL ProductName is now built from:
-    ``manufacturerNumber`` and the color property option (matched by group).
+    Herde/IS decision), the two fields the DHL ProductName is now built from
+    (``manufacturerNumber`` and the color property option, matched by group),
+    and the tag ids that mark an article as second choice ("B-Ware").
     """
 
     product_number: str | None = None
     manufacturer_number: str | None = None
     category_ids: list[str] = Field(default_factory=list)
+    # Shipped by the flat product response without requesting an association.
+    tag_ids: list[str] = Field(default_factory=list)
     properties: list[SwPropertyOption] = Field(default_factory=list)
 
-    @field_validator("category_ids", "properties", mode="before")
+    @field_validator("category_ids", "tag_ids", "properties", mode="before")
     @classmethod
     def _null_to_empty(cls, v: object) -> object:
         # Shopware sends null when the field/association isn't populated.
@@ -292,6 +295,11 @@ class OrderItem(BaseModel):
     # number: such orders are skipped rather than shipped
     # (filter.require_model_names).
     has_model_name: bool = False
+
+    # Article is second choice — the Shopware product carries the "B-Ware" tag.
+    # Its ``name`` gets the "[ZW]" prefix once both name sources have run
+    # (pipeline._apply_second_choice_prefix).
+    second_choice: bool = False
 
     @model_validator(mode="after")
     def _seed_former_parent_id(self) -> "OrderItem":

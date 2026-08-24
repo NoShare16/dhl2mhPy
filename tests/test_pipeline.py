@@ -22,7 +22,7 @@ import httpx
 import respx
 import structlog
 
-from dhl2mh.mapping import COLOR_GROUP_ID, SERVICE_AG
+from dhl2mh.mapping import COLOR_GROUP_ID, SECOND_CHOICE_TAG_ID, SERVICE_AG
 from dhl2mh.pipeline import run_pipeline
 
 FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
@@ -151,6 +151,15 @@ def _sw_product_handler(request: httpx.Request) -> httpx.Response:
     the new ``require_model_names`` gate would skip every order — these tests
     are about the rest of the pipeline, so they need the fallback to work.
     """
+    return _sw_product_response(request, tag_ids=[])
+
+
+def _sw_b_ware_product_handler(request: httpx.Request) -> httpx.Response:
+    """Same product, but tagged "B-Ware" — the article is second choice."""
+    return _sw_product_response(request, tag_ids=["irgendein-tag", SECOND_CHOICE_TAG_ID])
+
+
+def _sw_product_response(request: httpx.Request, *, tag_ids: list[str]) -> httpx.Response:
     pn = json.loads(request.content)["filter"][0]["value"]
     return httpx.Response(
         200,
@@ -161,6 +170,7 @@ def _sw_product_handler(request: httpx.Request) -> httpx.Response:
                     "productNumber": pn,
                     "manufacturerNumber": f"MN-{pn}",
                     "categoryIds": [],
+                    "tagIds": tag_ids,
                     "properties": [{"name": "Schwarz", "groupId": COLOR_GROUP_ID}],
                 }
             ]
@@ -391,12 +401,15 @@ def _akeneo_product(modell: str, color: str | None = None) -> dict:
     return {"_embedded": {"items": [{"identifier": "400251", "values": values}]}}
 
 
-def _mock_common_routes(router, settings, *, sw_knows_product: bool = True) -> None:
+def _mock_common_routes(
+    router, settings, *, sw_knows_product: bool = True, b_ware: bool = False
+) -> None:
     """Plenty + Shopware + DHL routes shared by the Akeneo pipeline tests.
 
     Only the synthetic clean order (900001, article 5050) is fetched. Shopware
     supplies the fallback name (``MN-5050 Schwarz``) unless ``sw_knows_product``
-    is False, which is the "no model number anywhere" case.
+    is False, which is the "no model number anywhere" case. With ``b_ware`` the
+    product carries the second-choice tag.
     """
     plenty_base = settings.plenty.base_url
     router.post(f"{plenty_base}/rest/login").respond(200, json={"access_token": "tok"})
@@ -415,7 +428,9 @@ def _mock_common_routes(router, settings, *, sw_knows_product: bool = True) -> N
     )
     product = router.post(f"{sw_base}/api/search/product")
     if sw_knows_product:
-        product.mock(side_effect=_sw_product_handler)
+        product.mock(
+            side_effect=_sw_b_ware_product_handler if b_ware else _sw_product_handler
+        )
     else:
         product.respond(200, json={"data": []})
     router.post(f"{sw_base}/api/search/order").respond(200, json={"data": []})
@@ -591,6 +606,85 @@ async def test_akeneo_model_alone_satisfies_the_requirement(akeneo_settings):
     assert summary.uploaded == 1
     xml = dhl_upload.calls[0].request.content.decode("utf-8")
     assert "<ProductName>K 7347 C</ProductName>" in xml
+
+
+# ── Zweite Wahl: the Shopware "B-Ware" tag prefixes the ProductName ──────────
+
+
+async def test_b_ware_article_gets_the_zw_prefix_on_the_akeneo_name(akeneo_settings):
+    """The prefix sits in front of the PIM name, which wins over Shopware."""
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+        structlog.testing.capture_logs() as logs,
+    ):
+        _mock_common_routes(router, settings, b_ware=True)
+
+        mk = settings.akeneomk.base_url
+        router.post(f"{mk}/api/oauth/v1/token").respond(
+            200, json={"access_token": "mk-tok", "expires_in": 3600}
+        )
+        router.get(f"{mk}/api/rest/v1/products").respond(
+            200, json=_akeneo_product("UG 5005-30", color="kupfer_rose")
+        )
+        router.get(f"{mk}/api/rest/v1/attributes/color/options/kupfer_rose").respond(
+            200, json={"labels": {"de_DE": "Kupfer Rose"}}
+        )
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>[ZW] UG 5005-30 Kupfer Rose</ProductName>" in xml
+    assert any(e["event"] == "pipeline.second_choice_marked" for e in logs)
+
+
+async def test_b_ware_article_gets_the_zw_prefix_on_the_shopware_name(akeneo_settings):
+    """No PIM answer → the prefix still lands in front of the fallback name."""
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        _mock_common_routes(router, settings, b_ware=True)
+        for base in (settings.akeneomk.base_url, settings.akeneoml.base_url):
+            router.post(f"{base}/api/oauth/v1/token").respond(500, text="pim down")
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        await run_pipeline(settings)
+
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>[ZW] MN-5050 Schwarz</ProductName>" in xml
+
+
+async def test_article_without_the_b_ware_tag_keeps_its_plain_name(settings):
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+        structlog.testing.capture_logs() as logs,
+    ):
+        _mock_common_routes(router, settings)
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        await run_pipeline(settings)
+
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>MN-5050 Schwarz</ProductName>" in xml
+    assert "[ZW]" not in xml
+    assert not any(e["event"] == "pipeline.second_choice_marked" for e in logs)
 
 
 async def test_pipeline_without_akeneo_config_skips_the_pim_entirely(settings):

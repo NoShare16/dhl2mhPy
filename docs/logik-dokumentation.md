@@ -306,6 +306,10 @@ Diese Werte landen je Artikel im XML (`Weight`, `Volume`).
 
   Der Plenty-`order_item_name` ist **keine** dritte Stufe mehr. Er bleibt zwar
   bis zur Anreicherung im Feld stehen, gilt aber nicht als Modellnummer.
+- **Zweite Wahl (`[ZW]`):** Trägt das Shopware-Produkt den Tag **„B-Ware"**
+  (`019745bc913a7554aef3d1634e45c2a7`), wird dem `ProductName` das Präfix
+  `[ZW] ` vorangestellt — z. B. `[ZW] UG 5005-30 Kupfer Rosé`. Details in
+  Abschnitt 11.1.
 - Die PIM-Anreicherung selbst ist **best-effort**: Sind die `AKENEO*`-Variablen
   leer oder ist das PIM nicht erreichbar, bricht der Lauf **nicht** ab — es
   greift Stufe 2. Fällt das PIM aus *und* hat Shopware keine
@@ -314,6 +318,35 @@ Diese Werte landen je Artikel im XML (`Weight`, `Volume`).
 - **Services erscheinen nicht** als eigene Items — sie stecken als
   `Services/MatchCode`-Blöcke im jeweiligen Artikel.
 - Umgebungsabhängig: `Sender/PartnerId/Id` = `1` (UAT) bzw. `3` (Prod).
+
+### 11.1 Zweite Wahl — `[ZW]`-Präfix
+
+Zweite-Wahl-Artikel (B-Ware) müssen auf dem Label als solche erkennbar sein.
+Woran sie erkannt werden und was passiert:
+
+- **Quelle: ausschließlich Shopware.** Das Produkt trägt dort den Tag
+  **„B-Ware"** (Tag-Id `019745bc913a7554aef3d1634e45c2a7`). Gematcht wird über
+  die **Tag-Id**, nicht über den Namen — der Name ist im Shopware-Admin
+  jederzeit umbenennbar, die Id nicht. Das PIM kennt das Modell, nicht den
+  Zustand der Ware, kann diese Frage also nicht beantworten.
+- **Kein Zusatz-Request:** Die flache Produkt-Antwort liefert `tagIds` von sich
+  aus mit; die bestehende Produkt-Abfrage (Schritt 6) reicht.
+- **Wirkung:** Dem fertigen `ProductName` wird `[ZW] ` vorangestellt:
+
+  | Shopware-Tag | Namensquelle | `ProductName` im XML |
+  |---|---|---|
+  | — | Akeneo | `UG 5005-30 Kupfer Rosé` |
+  | B-Ware | Akeneo | `[ZW] UG 5005-30 Kupfer Rosé` |
+  | B-Ware | Shopware-Fallback | `[ZW] HE517ABW0 Schwarz` |
+
+- **Zeitpunkt:** Das Präfix wird **nach** beiden Namensquellen gesetzt
+  (Schritt 6c, siehe Abschnitt 14). Beide Quellen überschreiben `name`
+  vollständig — würde das Präfix früher gesetzt, ginge es beim nächsten
+  Schreibzugriff wieder verloren.
+- Betrifft nur **Artikel**-Positionen; Services haben keinen `ProductName`.
+
+{placeholder}
+*(Screenshot: Shopware-Admin — Produkt mit Tag „B-Ware")*
 
 ---
 
@@ -367,7 +400,8 @@ Nach dem Upload wird `DHL__LABEL_WAIT_SECONDS` (Default 180) gewartet, dann
 5. Filter: Package-Number, Typ, Bundle-Struktur, Gewicht
 6. Shopware-Produkt: Kategorien (IS/E-AN) + Fallback-Name (manufacturerNumber + Farbe)
 6b. Akeneo-PIM: ProductName aus modell + Farbe (MK, dann ML) — best-effort
-6c. Skip: Artikel ohne Modellnummer aus beiden Quellen
+6c. Zweite Wahl: "[ZW]"-Präfix für Artikel mit Shopware-Tag "B-Ware"
+6d. Skip: Artikel ohne Modellnummer aus beiden Quellen
 7. Service-Auflösung: MatchCodes, SWG/VPR, Gewicht/Volumen
 8. XML bauen + zu DHL hochladen
 9. Warten, Labels ziehen (dedupliziert)
