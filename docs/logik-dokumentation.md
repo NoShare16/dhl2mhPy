@@ -331,18 +331,28 @@ Woran sie erkannt werden und was passiert:
   Zustand der Ware, kann diese Frage also nicht beantworten.
 - **Kein Zusatz-Request:** Die flache Produkt-Antwort liefert `tagIds` von sich
   aus mit; die bestehende Produkt-Abfrage (Schritt 6) reicht.
+- **Eigene Namensquelle:** Für B-Ware-Artikel ist die **Plenty-Variantennummer**
+  (`variation.number`) die erste Wahl — sie trägt dort bereits die lesbare
+  Modellbezeichnung. Grund: Eine B-Ware-Variante ist eine eigene Plenty-Variante
+  mit eigener Variations-Id, und genau diese Id kennt Akeneo nicht (unter
+  `plenty_varianten_id` steht die Id des Originalartikels). Der PIM-Lookup aus
+  Schritt 6b läuft für solche Artikel also ins Leere und würde auf Shopwares
+  `manufacturerNumber` zurückfallen — eine nackte Artikelnummer. Die
+  Variantennummer kommt ohne Zusatz-Request mit (`with[]=orderItems.variation`).
+  Ist sie leer, bleibt es bei der normalen Reihenfolge Akeneo → Shopware.
 - **Wirkung:** Dem fertigen `ProductName` wird `[ZW] ` vorangestellt:
 
   | Shopware-Tag | Namensquelle | `ProductName` im XML |
   |---|---|---|
   | — | Akeneo | `UG 5005-30 Kupfer Rosé` |
-  | B-Ware | Akeneo | `[ZW] UG 5005-30 Kupfer Rosé` |
+  | B-Ware | Plenty-Variantennummer | `[ZW] UG 5005-30 Kupfer Rosé` |
+  | B-Ware | Akeneo (keine Variantennummer) | `[ZW] UG 5005-30 Kupfer Rosé` |
   | B-Ware | Shopware-Fallback | `[ZW] HE517ABW0 Schwarz` |
 
-- **Zeitpunkt:** Das Präfix wird **nach** beiden Namensquellen gesetzt
+- **Zeitpunkt:** Name und Präfix werden **nach** beiden Namensquellen gesetzt
   (Schritt 6c, siehe Abschnitt 14). Beide Quellen überschreiben `name`
-  vollständig — würde das Präfix früher gesetzt, ginge es beim nächsten
-  Schreibzugriff wieder verloren.
+  vollständig — würde 6c früher laufen, wären Name und Präfix beim nächsten
+  Schreibzugriff wieder weg.
 - Betrifft nur **Artikel**-Positionen; Services haben keinen `ProductName`.
 
 {placeholder}
@@ -400,7 +410,8 @@ Nach dem Upload wird `DHL__LABEL_WAIT_SECONDS` (Default 180) gewartet, dann
 5. Filter: Package-Number, Typ, Bundle-Struktur, Gewicht
 6. Shopware-Produkt: Kategorien (IS/E-AN) + Fallback-Name (manufacturerNumber + Farbe)
 6b. Akeneo-PIM: ProductName aus modell + Farbe (MK, dann ML) — best-effort
-6c. Zweite Wahl: "[ZW]"-Präfix für Artikel mit Shopware-Tag "B-Ware"
+6c. Zweite Wahl: Name aus der Variantennummer + "[ZW]"-Praefix fuer Artikel
+    mit Shopware-Tag "B-Ware"
 6d. Skip: Artikel ohne Modellnummer aus beiden Quellen
 7. Service-Auflösung: MatchCodes, SWG/VPR, Gewicht/Volumen
 8. XML bauen + zu DHL hochladen

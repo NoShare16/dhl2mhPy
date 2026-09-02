@@ -23,6 +23,10 @@ class _ApiModel(BaseModel):
 class ApiVariation(_ApiModel):
     stock_limitation: int = 0
     weight_g: int = 0
+    # Plenty "Variantennummer". On second-choice (B-Ware) variations it already
+    # carries the readable model designation, which the Akeneo PIM cannot supply
+    # under the B-Ware variation id — see ``pipeline._apply_second_choice``.
+    number: str | None = None
     # Plenty uses widthMM/lengthMM/heightMM (capital MM), which alias_generator
     # would otherwise turn into widthMm/lengthMm/heightMm — override explicitly.
     width_mm: int = Field(default=0, alias="widthMM")
@@ -297,9 +301,14 @@ class OrderItem(BaseModel):
     has_model_name: bool = False
 
     # Article is second choice — the Shopware product carries the "B-Ware" tag.
-    # Its ``name`` gets the "[ZW]" prefix once both name sources have run
-    # (pipeline._apply_second_choice_prefix).
+    # Its ``name`` is rebuilt from ``variation_number`` and gets the "[ZW]"
+    # prefix once both name sources have run (pipeline._apply_second_choice).
     second_choice: bool = False
+
+    # Plenty "Variantennummer" (variation.number). Only consulted for
+    # second-choice articles, where it is the authoritative model designation —
+    # the Akeneo PIM knows the original variation id, not the B-Ware one.
+    variation_number: str | None = None
 
     @model_validator(mode="after")
     def _seed_former_parent_id(self) -> "OrderItem":

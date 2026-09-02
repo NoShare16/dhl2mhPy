@@ -114,11 +114,16 @@ async def run_pipeline(
             filtered.passed, settings, concurrency=category_concurrency
         )
 
-        # 6c. Mark second-choice articles. Runs after both name sources so the
-        # "[ZW]" prefix survives whichever of them won.
-        marked = _apply_second_choice_prefix(filtered.passed)
-        if marked:
-            log.info("pipeline.second_choice_marked", articles=marked)
+        # 6c. Second-choice articles: name from the Plenty variation number,
+        # then the "[ZW]" prefix. Runs after both name sources so it overrides
+        # whichever of them won.
+        second_choice = _apply_second_choice(filtered.passed)
+        if second_choice.marked:
+            log.info(
+                "pipeline.second_choice_marked",
+                articles=second_choice.marked,
+                named_from_variation_number=second_choice.renamed,
+            )
 
         # 6d. Skip orders whose articles have no model name from either source.
         names = require_model_names(filtered.passed)
@@ -270,22 +275,44 @@ def _articles(orders: list[PlentyOrder]) -> list[OrderItem]:
     ]
 
 
-def _apply_second_choice_prefix(orders: list[PlentyOrder]) -> int:
-    """Prefix the ProductName of every second-choice article with "[ZW]".
+class SecondChoiceResult(NamedTuple):
+    marked: int
+    renamed: int
+
+
+def _apply_second_choice(orders: list[PlentyOrder]) -> SecondChoiceResult:
+    """Name and mark every second-choice article.
+
+    Two steps, both only for articles carrying the Shopware "B-Ware" tag:
+
+    1. **Name from the Plenty variation number.** A B-Ware variation is its own
+       Plenty variation with its own id, which the Akeneo PIM does not carry —
+       the PIM knows the id of the original, new-goods variation. The lookup in
+       step 6b therefore misses and the article falls back to Shopware's
+       ``manufacturerNumber``, a bare article number. Plenty's
+       "Variantennummer" already holds the readable designation for exactly
+       these articles, so it wins outright here.
+    2. **The "[ZW]" prefix**, so the label shows the goods are not new.
 
     Must run after both name sources (Shopware product, Akeneo PIM), because
-    either of them overwrites ``name`` wholesale. The B-Ware flag itself comes
-    from Shopware only. Returns the number of articles marked.
+    either of them overwrites ``name`` wholesale. Returns how many articles were
+    marked, and how many of those took their name from the variation number.
     """
     marked = 0
+    renamed = 0
     for item in _articles(orders):
-        if not item.second_choice or not item.name:
+        if not item.second_choice:
             continue
-        if item.name.startswith(SECOND_CHOICE_PREFIX):
+        number = (item.variation_number or "").strip()
+        if number:
+            item.name = number
+            item.has_model_name = True
+            renamed += 1
+        if not item.name or item.name.startswith(SECOND_CHOICE_PREFIX):
             continue
         item.name = f"{SECOND_CHOICE_PREFIX} {item.name}"
         marked += 1
-    return marked
+    return SecondChoiceResult(marked=marked, renamed=renamed)
 
 
 async def _enrich_from_akeneo(

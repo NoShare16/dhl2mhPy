@@ -84,6 +84,30 @@ def test_real_order_variation_measurements_mapped(real_order):
     assert capa.height_mm > 0 or capa.length_mm > 0 or capa.width_mm > 0
 
 
+def test_real_order_variation_number_mapped(real_order):
+    """The Plenty "Variantennummer" — the name source for second-choice articles."""
+    o = map_order(real_order, COUNTRIES)
+    by_name = {i.name: i for i in o.order_items}
+    assert by_name["Gutmann Deckenmodul Capa 07 EM"].variation_number == "07 EM"
+
+
+def test_item_without_variation_has_no_variation_number():
+    api = ApiOrder.model_validate(
+        _minimal_order(
+            orderItems=[
+                {
+                    "typeId": 1,
+                    "itemVariationId": 42,
+                    "orderItemName": "Bare",
+                    "quantity": 1,
+                }
+            ]
+        )
+    )
+    o = map_order(api, COUNTRIES)
+    assert o.order_items[0].variation_number is None
+
+
 def test_real_order_delivery_address_picked_via_relation_type_2(real_order):
     """addressRelations: typeId=1=billing, typeId=2=delivery — must use 2."""
     o = map_order(real_order, COUNTRIES)
