@@ -46,9 +46,13 @@ _SAMPLE_LABEL_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-def _synthetic_clean_order() -> dict:
+def _synthetic_clean_order(variation_number: str | None = None) -> dict:
     """A small, valid Plenty order with a single article — no service items,
-    so it sails through the resolver without needing whitelisted service IDs."""
+    so it sails through the resolver without needing whitelisted service IDs.
+
+    ``variation_number`` fills the Plenty "Variantennummer", the name source for
+    second-choice articles.
+    """
     return {
         "id": 900001,
         "statusId": 6.1,
@@ -81,6 +85,7 @@ def _synthetic_clean_order() -> dict:
                 "properties": [],
                 "variation": {
                     "stockLimitation": 0,
+                    "number": variation_number,
                     "weightG": 10000,
                     "widthMM": 500,
                     "lengthMM": 400,
@@ -159,7 +164,16 @@ def _sw_b_ware_product_handler(request: httpx.Request) -> httpx.Response:
     return _sw_product_response(request, tag_ids=["irgendein-tag", SECOND_CHOICE_TAG_ID])
 
 
-def _sw_product_response(request: httpx.Request, *, tag_ids: list[str]) -> httpx.Response:
+def _sw_b_ware_unnamed_product_handler(request: httpx.Request) -> httpx.Response:
+    """B-Ware tag, but no manufacturerNumber/color — Shopware yields no name."""
+    return _sw_product_response(
+        request, tag_ids=[SECOND_CHOICE_TAG_ID], with_name=False
+    )
+
+
+def _sw_product_response(
+    request: httpx.Request, *, tag_ids: list[str], with_name: bool = True
+) -> httpx.Response:
     pn = json.loads(request.content)["filter"][0]["value"]
     return httpx.Response(
         200,
@@ -168,10 +182,14 @@ def _sw_product_response(request: httpx.Request, *, tag_ids: list[str]) -> httpx
                 {
                     "id": pn,
                     "productNumber": pn,
-                    "manufacturerNumber": f"MN-{pn}",
+                    "manufacturerNumber": f"MN-{pn}" if with_name else None,
                     "categoryIds": [],
                     "tagIds": tag_ids,
-                    "properties": [{"name": "Schwarz", "groupId": COLOR_GROUP_ID}],
+                    "properties": (
+                        [{"name": "Schwarz", "groupId": COLOR_GROUP_ID}]
+                        if with_name
+                        else []
+                    ),
                 }
             ]
         },
@@ -402,14 +420,22 @@ def _akeneo_product(modell: str, color: str | None = None) -> dict:
 
 
 def _mock_common_routes(
-    router, settings, *, sw_knows_product: bool = True, b_ware: bool = False
+    router,
+    settings,
+    *,
+    sw_knows_product: bool = True,
+    b_ware: bool = False,
+    sw_has_name: bool = True,
+    variation_number: str | None = None,
 ) -> None:
     """Plenty + Shopware + DHL routes shared by the Akeneo pipeline tests.
 
     Only the synthetic clean order (900001, article 5050) is fetched. Shopware
     supplies the fallback name (``MN-5050 Schwarz``) unless ``sw_knows_product``
     is False, which is the "no model number anywhere" case. With ``b_ware`` the
-    product carries the second-choice tag.
+    product carries the second-choice tag; ``sw_has_name`` False strips the
+    fallback name off it, and ``variation_number`` sets the Plenty
+    "Variantennummer" of the article.
     """
     plenty_base = settings.plenty.base_url
     router.post(f"{plenty_base}/rest/login").respond(200, json={"access_token": "tok"})
@@ -418,7 +444,10 @@ def _mock_common_routes(
     )
     router.get(f"{plenty_base}/rest/orders/search").respond(
         200,
-        json={"isLastPage": True, "entries": [_to_jsonable(_synthetic_clean_order())]},
+        json={
+            "isLastPage": True,
+            "entries": [_to_jsonable(_synthetic_clean_order(variation_number))],
+        },
     )
     router.post(f"{plenty_base}/rest/orders/900001/shipping/packages").respond(200, json={})
 
@@ -427,12 +456,18 @@ def _mock_common_routes(
         200, json={"access_token": "sw-tok", "expires_in": 600}
     )
     product = router.post(f"{sw_base}/api/search/product")
-    if sw_knows_product:
+    if not sw_knows_product:
+        product.respond(200, json={"data": []})
+    elif b_ware:
         product.mock(
-            side_effect=_sw_b_ware_product_handler if b_ware else _sw_product_handler
+            side_effect=(
+                _sw_b_ware_product_handler
+                if sw_has_name
+                else _sw_b_ware_unnamed_product_handler
+            )
         )
     else:
-        product.respond(200, json={"data": []})
+        product.mock(side_effect=_sw_product_handler)
     router.post(f"{sw_base}/api/search/order").respond(200, json={"data": []})
 
     dhl_base = settings.dhl_base_url
@@ -611,8 +646,83 @@ async def test_akeneo_model_alone_satisfies_the_requirement(akeneo_settings):
 # ── Zweite Wahl: the Shopware "B-Ware" tag prefixes the ProductName ──────────
 
 
+async def test_b_ware_article_takes_its_name_from_the_variation_number(akeneo_settings):
+    """The Plenty "Variantennummer" beats the PIM for a second-choice article.
+
+    A B-Ware variation has its own Plenty variation id, which the PIM does not
+    carry — so even a PIM answer (here for the original article) must not win.
+    """
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+        structlog.testing.capture_logs() as logs,
+    ):
+        _mock_common_routes(
+            router, settings, b_ware=True, variation_number="UG 5005-30 Kupfer Rose"
+        )
+
+        mk = settings.akeneomk.base_url
+        router.post(f"{mk}/api/oauth/v1/token").respond(
+            200, json={"access_token": "mk-tok", "expires_in": 3600}
+        )
+        router.get(f"{mk}/api/rest/v1/products").respond(
+            200, json=_akeneo_product("FALSCHES MODELL")
+        )
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>[ZW] UG 5005-30 Kupfer Rose</ProductName>" in xml
+    assert "FALSCHES MODELL" not in xml
+    assert any(
+        e["event"] == "pipeline.second_choice_marked"
+        and e["named_from_variation_number"] == 1
+        for e in logs
+    )
+
+
+async def test_b_ware_variation_number_is_the_only_name_source_needed(akeneo_settings):
+    """With neither a PIM nor a Shopware name, the variation number saves the order.
+
+    Without it the article would have no model designation at all and
+    ``require_model_names`` would skip the whole order.
+    """
+    settings = akeneo_settings
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP"),
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        _mock_common_routes(
+            router,
+            settings,
+            b_ware=True,
+            sw_has_name=False,
+            variation_number="UG 5005-30 Kupfer Rose",
+        )
+        for base in (settings.akeneomk.base_url, settings.akeneoml.base_url):
+            router.post(f"{base}/api/oauth/v1/token").respond(500, text="pim down")
+
+        dhl_upload = router.post(
+            f"{settings.dhl_base_url}/transmission/{settings.dhl_username}"
+        ).respond(200, text="<Ack/>")
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1
+    xml = dhl_upload.calls[0].request.content.decode("utf-8")
+    assert "<ProductName>[ZW] UG 5005-30 Kupfer Rose</ProductName>" in xml
+
+
 async def test_b_ware_article_gets_the_zw_prefix_on_the_akeneo_name(akeneo_settings):
-    """The prefix sits in front of the PIM name, which wins over Shopware."""
+    """No variation number → the prefix sits in front of the PIM name."""
     settings = akeneo_settings
     with (
         respx.mock(assert_all_called=False) as router,
@@ -646,7 +756,7 @@ async def test_b_ware_article_gets_the_zw_prefix_on_the_akeneo_name(akeneo_setti
 
 
 async def test_b_ware_article_gets_the_zw_prefix_on_the_shopware_name(akeneo_settings):
-    """No PIM answer → the prefix still lands in front of the fallback name."""
+    """No variation number and no PIM answer → prefix on the fallback name."""
     settings = akeneo_settings
     with (
         respx.mock(assert_all_called=False) as router,

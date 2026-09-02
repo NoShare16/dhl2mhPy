@@ -59,7 +59,7 @@ Der gesamte Lauf ist async und nutzt je einen Client pro Workflow
 PlentyClient.iter_orders ─► map_order ─► _enrich_from_shopware_order
    ─► require_service_former_parent_ids ─► filter_orders
    ─► _enrich_from_shopware_product ─► _enrich_from_akeneo
-   ─► _apply_second_choice_prefix ─► require_model_names ─► resolve_orders
+   ─► _apply_second_choice ─► require_model_names ─► resolve_orders
    ─► OrderXmlBuilder.build ─► DhlClient.upload_order_xml
    ─► (warten) ─► DhlClient.get_labels ─► PlentyClient.update_package
    ─► send_skipped_orders_report
@@ -469,10 +469,16 @@ Ablauf siehe Abschnitt 2, durchnummeriert in der Logik-Doku (Abschnitt 14):
   überschreibt den in Schritt 6 gesetzten Namen. Aus dieser Reihenfolge ergibt
   sich der Vorrang Akeneo → Shopware von selbst; beide setzen dabei
   `has_model_name`.
-- **Schritt 6c (`_apply_second_choice_prefix`):** stellt `[ZW] ` vor den
-  `ProductName` jedes Artikels mit `second_choice`. Läuft **nach** 6 und 6b,
-  weil beide Namensquellen `name` komplett überschreiben — früher gesetzt wäre
-  das Präfix wieder weg. Das Flag selbst kommt aus Schritt 6 (Shopware).
+- **Schritt 6c (`_apply_second_choice`):** setzt für jeden Artikel mit
+  `second_choice` erst den `ProductName` aus der Plenty-Variantennummer
+  (`OrderItem.variation_number`) und stellt dann `[ZW] ` voran. Läuft **nach**
+  6 und 6b, weil beide Namensquellen `name` komplett überschreiben — früher
+  gesetzt wären Name und Präfix wieder weg. Das Flag selbst kommt aus Schritt 6
+  (Shopware). Die Variantennummer gewinnt hier bewusst gegen Akeneo: eine
+  B-Ware-Variante hat eine eigene Plenty-Variations-Id, die das PIM unter
+  `plenty_varianten_id` nicht führt (dort steht die Id des Originalartikels) —
+  der Lookup in 6b geht also ins Leere. Fehlt die Variantennummer, bleibt es
+  beim Namen aus 6b/6.
 - **Schritt 6d (`require_model_names`):** kippt Aufträge, deren Artikel aus
   keiner Quelle eine Modellnummer haben. Muss zwingend nach 6b laufen.
 - **Robustheit:** ein fehlschlagender Tracking-Push bricht den Lauf nicht ab;
@@ -484,7 +490,8 @@ Ablauf siehe Abschnitt 2, durchnummeriert in der Logik-Doku (Abschnitt 14):
 
 Helper: `_articles`, `_enrich_from_shopware_order`, `_enrich_from_shopware_product`
 (Kategorien + Fallback-Name + `second_choice`), `_enrich_from_akeneo`
-(`ProductName`), `_apply_second_choice_prefix` (`[ZW]`), `_maybe_send_report`.
+(`ProductName`), `_apply_second_choice` (Variantennummer + `[ZW]`),
+`_maybe_send_report`.
 
 ---
 
