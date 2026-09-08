@@ -108,7 +108,13 @@ class OrderXmlBuilder:
 
         partner = etree.SubElement(receiver, "PartnerId")
         _text(partner, "System", self.sending_party_id)
-        _text(partner, "Id", str(addr.customer_id))
+        # Die Receiver-PartnerId ist fuer DHL die global eindeutige Identifikation
+        # einer Empfaengeradresse (DSI-Doku 2.23, Abschnitt 4.1). Wiederholt sie
+        # sich, lehnt DeliverIT den Auftrag mit CUSTOMER_ALREADY_EXISTS ab — und
+        # meldet das nur unter transmissionAcknowledgement, nicht beim Upload.
+        # Deshalb die Auftrags-ID statt der (pro Kunde stabilen) Kontakt-ID:
+        # sonst scheitert jede Gewaehrleistung am Kunden des Elternauftrags.
+        _text(partner, "Id", str(order.id))
 
         _text(receiver, "Name", addr.full_name)
 
