@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from dhl2mh.mapping import (
+from dhl2mh.mapping.constants import (
     HEAVY_LIFT_MATCH_CODE,
     HEAVY_LIFT_SERVICE_ID,
     HEAVY_LIFT_THRESHOLD_KG,
@@ -102,7 +102,7 @@ def test_whitelist_contains_all_14_known_service_ids():
         SERVICE_SVG, SERVICE_LA, SERVICE_DI, SERVICE_INSTALL,
         SERVICE_SWG, SERVICE_VPR,
     }
-    assert SERVICE_WHITELIST == expected
+    assert expected == SERVICE_WHITELIST
     assert len(SERVICE_WHITELIST) == 14
     for sid in SERVICE_WHITELIST:
         map_to_match_codes(sid, [])  # no orphans
@@ -110,11 +110,11 @@ def test_whitelist_contains_all_14_known_service_ids():
 
 def test_heavy_lift_constants():
     assert HEAVY_LIFT_SERVICE_ID == SERVICE_SWG
-    assert HEAVY_LIFT_THRESHOLD_KG == Decimal("179")
+    assert Decimal("179") == HEAVY_LIFT_THRESHOLD_KG
     assert HEAVY_LIFT_MATCH_CODE == "SWG"
 
 
 def test_vpr_constants():
     assert VPR_SERVICE_ID == SERVICE_VPR
     assert VPR_MATCH_CODE == "VPR"
-    assert VPR_TRIGGER_MATCH_CODES == frozenset({"AWS", "ISEK", "KF", "E-AN", "IS"})
+    assert frozenset({"AWS", "ISEK", "KF", "E-AN", "IS"}) == VPR_TRIGGER_MATCH_CODES

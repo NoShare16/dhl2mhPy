@@ -5,8 +5,8 @@ from decimal import Decimal
 import pytest
 from lxml import etree
 
+from dhl2mh.mapping.xml_builder import DSI_NS, XSI_NS, OrderXmlBuilder
 from dhl2mh.models import Address, OrderItem, PlentyOrder
-from dhl2mh.xml_builder import DSI_NS, XSI_NS, OrderXmlBuilder
 
 DSI = f"{{{DSI_NS}}}"
 XSI = f"{{{XSI_NS}}}"

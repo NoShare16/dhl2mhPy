@@ -1,7 +1,7 @@
 from decimal import Decimal
 
-from dhl2mh.bundles import group_by_bundle, split_articles_and_services
-from dhl2mh.mapping import SERVICE_AG
+from dhl2mh.domain.bundles import group_by_bundle, split_articles_and_services
+from dhl2mh.mapping.constants import SERVICE_AG
 from dhl2mh.models import OrderItem
 
 
