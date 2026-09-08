@@ -125,12 +125,27 @@ def test_sender_is_supplier_with_configured_partner_id():
     assert sender.find("PartnerId/Id").text == "3"
 
 
-def test_receiver_is_customer_with_customer_id_from_address():
+def test_receiver_is_customer_with_order_id_as_partner_id():
     root = _root()
     receiver = root.find(f".//{DSI}Order/Receiver")
     assert receiver.get(f"{XSI}type") == "dsi:Customer"
-    assert receiver.find("PartnerId/Id").text == "4042"
+    assert receiver.find("PartnerId/Id").text == "12345"
     assert receiver.find("Name").text == "Max Mustermann"
+
+
+def test_receiver_partner_id_differs_between_orders_of_same_customer():
+    """DHL weist einen Auftrag mit wiederholter Receiver-PartnerId ab
+    (CUSTOMER_ALREADY_EXISTS), also darf die Kunden-ID dort nicht landen."""
+    first = _root(order=_order(id=12345))
+    second = _root(order=_order(id=12346))
+
+    ids = [
+        r.find(f".//{DSI}Order/Receiver/PartnerId/Id").text for r in (first, second)
+    ]
+    assert ids == ["12345", "12346"]
+    # Der Kunde ist in beiden Auftraegen derselbe — nur der Identifikator nicht.
+    names = [r.find(f".//{DSI}Order/Receiver/Name").text for r in (first, second)]
+    assert names == ["Max Mustermann", "Max Mustermann"]
 
 
 def test_receiver_address_fields_populated_from_domain_address():

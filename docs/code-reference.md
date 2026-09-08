@@ -449,6 +449,13 @@ Struktur: `Transmission → Messages → MessageContent → Order` mit `OrderId`
 `Services`-Block (`MatchCode`, `WorkUnit`). Services selbst werden **nicht** als
 eigene Items ausgegeben — sie stecken in `service_match_codes` des Artikels.
 
+`_build_receiver` setzt `Receiver/PartnerId/Id` auf **`order.id`**, nicht auf
+`addr.customer_id`: für DHL ist diese Id das Eindeutigkeitskriterium einer
+Empfängeradresse, eine wiederholte Id führt zu `CUSTOMER_ALREADY_EXISTS` (und
+damit zu einem stillschweigend verworfenen Auftrag — der Upload antwortet
+trotzdem mit HTTP 200). Name und Adresse kommen unverändert aus
+`order.addresses[0]`. Hintergrund in der Logik-Doku, Abschnitt 11.2.
+
 ---
 
 ## 15. `pipeline.py` — Orchestrierung

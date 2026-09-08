@@ -318,6 +318,8 @@ Diese Werte landen je Artikel im XML (`Weight`, `Volume`).
 - **Services erscheinen nicht** als eigene Items — sie stecken als
   `Services/MatchCode`-Blöcke im jeweiligen Artikel.
 - Umgebungsabhängig: `Sender/PartnerId/Id` = `1` (UAT) bzw. `3` (Prod).
+- **`Receiver/PartnerId/Id` ist die Plenty-Auftrags-ID**, nicht die Kunden-ID —
+  siehe Abschnitt 11.2.
 
 ### 11.1 Zweite Wahl — `[ZW]`-Präfix
 
@@ -347,6 +349,31 @@ Woran sie erkannt werden und was passiert:
 
 {placeholder}
 *(Screenshot: Shopware-Admin — Produkt mit Tag „B-Ware")*
+
+### 11.2 `Receiver/PartnerId` — pro Auftrag, nie pro Kunde
+
+Für DHL ist die Receiver-`PartnerId` die *global eindeutige Identifikation einer
+Empfängeradresse* (DSI-Doku 2.23, Abschnitt 4.1). Wiederholt sie sich, lehnt
+DeliverIT den Auftrag ab:
+
+```
+ErrorCode:     CUSTOMER_ALREADY_EXISTS
+ErrorResponse: Customer [HDE, 4099999] already exists!
+```
+
+Deshalb steht dort `order.id` und **nicht** `addr.customer_id`. Die Plenty-
+Kontakt-ID ist pro Kunde stabil und wiederholt sich zwangsläufig — besonders bei
+**Gewährleistungen** (Typ 5), die immer an den Kunden des Elternauftrags gehen.
+Vor der Umstellung bekam deshalb *keine* Gewährleistung ein Label (0 von 23,
+Juli–September 2026).
+
+Der Kundenname bleibt unverändert in `<Name>` und `<Name1>`; eindeutig gemacht
+wird nur der Identifikator.
+
+Dass das monatelang unbemerkt blieb, liegt am Upload: er liefert HTTP 200 mit
+leerem Body, und `transmissionStatus` meldet zu abgelehnten Aufträgen gar
+nichts. Die Fehlermeldung steht ausschließlich unter
+`GET /transmissionAcknowledgement/{Mandant}`.
 
 ---
 
