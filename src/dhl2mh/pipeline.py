@@ -8,6 +8,7 @@ One pass per cron invocation: ``python -m dhl2mh`` or the ``dhl2mh`` CLI.
 """
 
 import asyncio
+from pathlib import Path
 from typing import NamedTuple
 
 import structlog
@@ -21,7 +22,7 @@ from dhl2mh.config import Settings, get_settings
 from dhl2mh.filter import filter_orders, require_model_names
 from dhl2mh.mapper import map_order
 from dhl2mh.mapping import SECOND_CHOICE_PREFIX, STOCK_LIMITATION_ARTICLE
-from dhl2mh.models import OrderItem, PackageData, PlentyOrder, SkippedOrder
+from dhl2mh.models import AckError, OrderItem, PackageData, PlentyOrder, SkippedOrder
 from dhl2mh.notifications import send_skipped_orders_report
 from dhl2mh.service_resolver import resolve_orders
 from dhl2mh.shopware_mapping import (
@@ -42,6 +43,7 @@ class PipelineSummary(NamedTuple):
     labels_received: int
     tracking_pushed: int
     skipped: int
+    rejected: int = 0
 
 
 async def run_pipeline(
@@ -149,12 +151,27 @@ async def run_pipeline(
             sender_partner_id="3" if settings.is_production else "1",
         )
         uploaded_ids: list[int] = []
+        rejected: list[AckError] = []
+        rejected_ids: set[int] = set()
         for order in resolved.passed:
             xml = builder.build(order)
-            await dhl.upload_order_xml(xml, order_id=order.id)
+            errors = await dhl.upload_order_xml(xml, order_id=order.id)
+            if errors:
+                # DHL refused it: no label will ever appear for this order, so
+                # it is a rejection, not an upload.
+                for err in errors:
+                    rejected.append(err.model_copy(update={"order_id": err.order_id or order.id}))
+                rejected_ids.add(order.id)
+                continue
             uploaded_ids.append(order.id)
         uploaded = len(uploaded_ids)
         log.info("pipeline.uploaded", count=uploaded, order_ids=uploaded_ids)
+        if rejected:
+            log.error(
+                "pipeline.upload_rejected",
+                count=len(rejected),
+                order_ids=sorted(rejected_ids),
+            )
 
         # 9. Wait for DHL processing, then pull labels
         wait_s = settings.dhl.label_wait_seconds
@@ -170,13 +187,25 @@ async def run_pipeline(
         # status pull is a snapshot, so this is a warning to investigate, not an
         # error — a later run may still pick the label up.
         label_ids = {label.order_id for label in labels}
-        missing_label_orders = [o for o in resolved.passed if o.id not in label_ids]
+        missing_label_orders = [
+            o
+            for o in resolved.passed
+            if o.id not in label_ids and o.id not in rejected_ids
+        ]
         if missing_label_orders:
             log.warning(
                 "pipeline.labels_missing",
                 count=len(missing_label_orders),
                 order_ids=[o.id for o in missing_label_orders],
             )
+
+        # 9b. Drain the acknowledgement queue. Uploads already carry ``ack=true``,
+        # so this mostly catches what came in outside this run — but it is the
+        # only place a rejection would otherwise surface, and it is consume-once:
+        # left unread it grows, read carelessly it is gone. The client archives
+        # the raw response before parsing.
+        queue_errors = await _fetch_acknowledgements(dhl, settings)
+        ack_errors = rejected + _new_ack_errors(queue_errors, rejected)
 
         # 10. Push OrderIdent back to Plenty (skipped in dry-run)
         tracking_pushed = 0
@@ -215,6 +244,7 @@ async def run_pipeline(
             + resolved.skipped
             + missing_label_reports,
             settings,
+            ack_errors=ack_errors,
             dry_run=dry_run,
         )
 
@@ -229,6 +259,7 @@ async def run_pipeline(
                 + len(names.skipped)
                 + len(resolved.skipped)
             ),
+            rejected=len(rejected),
         )
 
 
@@ -438,15 +469,58 @@ async def _enrich_from_shopware_order(
 
 
 def _maybe_send_report(
-    skipped: list[SkippedOrder], settings: Settings, *, dry_run: bool = False
+    skipped: list[SkippedOrder],
+    settings: Settings,
+    *,
+    ack_errors: list[AckError] | None = None,
+    dry_run: bool = False,
 ) -> None:
-    if not skipped:
+    ack_errors = ack_errors or []
+    if not skipped and not ack_errors:
         return
     if dry_run:
-        log.info("pipeline.dry_run_skip_report", would_report=len(skipped))
+        log.info(
+            "pipeline.dry_run_skip_report",
+            would_report=len(skipped),
+            would_report_rejected=len(ack_errors),
+        )
         return
     try:
-        send_skipped_orders_report(skipped, settings)
+        send_skipped_orders_report(skipped, settings, ack_errors=ack_errors)
     except Exception as e:
         # mail failure must not crash the pipeline
         log.error("pipeline.skipped_report_failed", error=str(e))
+
+
+async def _fetch_acknowledgements(dhl: DhlClient, settings: Settings) -> list[AckError]:
+    """Drain the acknowledgement queue, best-effort.
+
+    A failure here must not cost the run its report — the labels are already
+    pulled and written back at this point. The raw response is archived by the
+    client before parsing, so a failed *parse* is recoverable from disk; a failed
+    *fetch* is not, which is why it is logged as an error, not swallowed silently.
+    """
+    try:
+        _, errors = await dhl.fetch_acknowledgements(Path(settings.dhl.ack_archive_dir))
+    except Exception as e:
+        log.error("pipeline.acknowledgement_fetch_failed", error=str(e))
+        return []
+    if errors:
+        log.error(
+            "pipeline.acknowledgement_errors",
+            count=len(errors),
+            order_ids=[e.order_id for e in errors],
+        )
+    return errors
+
+
+def _new_ack_errors(
+    queue_errors: list[AckError], already_reported: list[AckError]
+) -> list[AckError]:
+    """Queue entries not already seen in this run's upload responses.
+
+    An order uploaded with ``ack=true`` can show up in the queue as well; without
+    this it would appear twice in the report mail.
+    """
+    seen = {(e.order_id, e.error_code) for e in already_reported}
+    return [e for e in queue_errors if (e.order_id, e.error_code) not in seen]

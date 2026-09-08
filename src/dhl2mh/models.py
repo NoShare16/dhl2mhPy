@@ -358,6 +358,20 @@ class LabelInfo(BaseModel):
     barcode: str = ""
 
 
+class AckError(BaseModel):
+    """One rejected order from a DHL acknowledgement.
+
+    DeliverIT answers an upload with HTTP 200 and reports rejections only inside
+    the ``TransmissionAcknowledgement`` body: ``AcknowledgementDetails`` carries
+    ``ErrorCode``/``ErrorResponse`` next to the echoed order. Details without an
+    ``ErrorCode`` are acceptances, not errors.
+    """
+
+    order_id: int | None = None
+    error_code: str
+    error_text: str = ""
+
+
 class PackageData(BaseModel):
     package_id: int = 1
     package_number: str

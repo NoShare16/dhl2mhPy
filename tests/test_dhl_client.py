@@ -20,22 +20,100 @@ def test_basic_auth_is_user_colon_sha1_upper_b64(settings):
     )
 
 
+# ── acknowledgement samples (shape taken from real DHL UAT answers) ────────
+
+ACCEPTED_ACK_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ns6:TransmissionAcknowledgement xmlns:ns6="http://www.it4logistics.de/i4ldata/ext">
+  <SendingPartyID>DELIVERIT</SendingPartyID>
+  <ReceivingPartyID>HDE</ReceivingPartyID>
+  <AcknowledgementDetails>
+    <Message>
+      <MessageContent>
+        <ns6:Order>
+          <OrderId><System>HDE</System><Id>908131715</Id></OrderId>
+          <OrderNr>908131715</OrderNr>
+        </ns6:Order>
+      </MessageContent>
+    </Message>
+  </AcknowledgementDetails>
+</ns6:TransmissionAcknowledgement>
+"""
+
+REJECTED_ACK_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ns6:TransmissionAcknowledgement xmlns:ns6="http://www.it4logistics.de/i4ldata/ext">
+  <SendingPartyID>DELIVERIT</SendingPartyID>
+  <ReceivingPartyID>HDE</ReceivingPartyID>
+  <AcknowledgementDetails>
+    <ErrorResponse>Customer [HDE, 4099999] already exists!</ErrorResponse>
+    <ErrorCode>CUSTOMER_ALREADY_EXISTS</ErrorCode>
+    <Message>
+      <MessageContent>
+        <ns6:Order>
+          <OrderId><System>HDE</System><Id>908133604</Id></OrderId>
+          <OrderNr>908133604</OrderNr>
+        </ns6:Order>
+      </MessageContent>
+    </Message>
+  </AcknowledgementDetails>
+</ns6:TransmissionAcknowledgement>
+"""
+
+
 async def test_upload_posts_xml_with_correct_headers_and_path(settings):
     xml = b"<?xml version=\"1.0\"?><Transmission/>"
     with respx.mock(base_url=settings.dhl_base_url) as router:
         post = router.post(f"/transmission/{settings.dhl_username}").respond(
-            200, text="<Ack/>"
+            200, content=ACCEPTED_ACK_XML
         )
         async with DhlClient(settings) as client:
-            body = await client.upload_order_xml(xml)
+            errors = await client.upload_order_xml(xml)
 
-    assert body == "<Ack/>"
+    assert errors == []  # no ErrorCode in the answer → accepted
     req = post.calls[0].request
     assert req.content == xml
     assert req.headers["Authorization"] == _expected_basic_auth(
         settings.dhl_username, settings.dhl_password
     )
     assert req.headers["Content-Type"].startswith("text/xml")
+
+
+async def test_upload_requests_the_acknowledgement(settings):
+    """Without ``ack=true`` the body comes back empty and a rejection is
+    invisible until someone drains the (consume-once) queue."""
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        post = router.post(f"/transmission/{settings.dhl_username}").respond(
+            200, content=ACCEPTED_ACK_XML
+        )
+        async with DhlClient(settings) as client:
+            await client.upload_order_xml(b"<x/>")
+
+    assert post.calls[0].request.url.params["ack"] == "true"
+
+
+async def test_upload_returns_rejection_from_acknowledgement(settings):
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        router.post(f"/transmission/{settings.dhl_username}").respond(
+            200, content=REJECTED_ACK_XML
+        )
+        async with DhlClient(settings) as client:
+            errors = await client.upload_order_xml(b"<x/>", order_id=908133604)
+
+    assert len(errors) == 1
+    assert errors[0].error_code == "CUSTOMER_ALREADY_EXISTS"
+    assert errors[0].error_text == "Customer [HDE, 4099999] already exists!"
+    assert errors[0].order_id == 908133604
+
+
+async def test_rejected_upload_is_http_200_not_an_exception(settings):
+    """The whole point: DHL accepts the transmission and refuses the order."""
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        router.post(f"/transmission/{settings.dhl_username}").respond(
+            200, content=REJECTED_ACK_XML
+        )
+        async with DhlClient(settings) as client:
+            errors = await client.upload_order_xml(b"<x/>")
+
+    assert errors  # reported as data, not raised
 
 
 async def test_upload_failure_raises(settings):
@@ -203,3 +281,95 @@ def test_prod_env_targets_prod_url_and_credentials(monkeypatch, settings):
     assert client._auth_header == _expected_basic_auth(
         prod_settings.dhl_username, prod_settings.dhl_password
     )
+
+
+# ── acknowledgement queue ──────────────────────────────────────────────────
+
+
+async def test_acknowledgement_is_archived_before_parsing(settings, tmp_path):
+    """Consume-once: the raw answer must survive on disk even if parsing fails,
+    because there is no second chance to fetch it."""
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        router.get(f"/transmissionAcknowledgement/{settings.dhl_username}").respond(
+            200, content=REJECTED_ACK_XML
+        )
+        async with DhlClient(settings) as client:
+            path, errors = await client.fetch_acknowledgements(tmp_path / "acks")
+
+    assert path.exists()
+    assert path.read_bytes() == REJECTED_ACK_XML
+    assert [(e.order_id, e.error_code) for e in errors] == [
+        (908133604, "CUSTOMER_ALREADY_EXISTS")
+    ]
+
+
+async def test_acknowledgement_uses_the_long_read_timeout(settings, tmp_path):
+    """The 60 s default is not enough — a timeout drains the queue anyway."""
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        route = router.get(
+            f"/transmissionAcknowledgement/{settings.dhl_username}"
+        ).respond(200, content=ACCEPTED_ACK_XML)
+        async with DhlClient(settings) as client:
+            await client.fetch_acknowledgements(tmp_path / "acks")
+
+    timeout = route.calls[0].request.extensions["timeout"]
+    assert timeout["read"] == settings.dhl.ack_read_timeout_seconds
+    assert timeout["read"] > 60.0
+
+
+async def test_acknowledgement_without_errors_reports_none(settings, tmp_path):
+    """AcknowledgementDetails is always present — it echoes the order back.
+    Only an ErrorCode marks a rejection."""
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        router.get(f"/transmissionAcknowledgement/{settings.dhl_username}").respond(
+            200, content=ACCEPTED_ACK_XML
+        )
+        async with DhlClient(settings) as client:
+            _, errors = await client.fetch_acknowledgements(tmp_path / "acks")
+
+    assert errors == []
+
+
+async def test_empty_acknowledgement_queue_is_not_an_error(settings, tmp_path):
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        router.get(f"/transmissionAcknowledgement/{settings.dhl_username}").respond(
+            200, content=b""
+        )
+        async with DhlClient(settings) as client:
+            path, errors = await client.fetch_acknowledgements(tmp_path / "acks")
+
+    assert errors == []
+    assert path.exists()
+
+
+async def test_acknowledgement_failure_raises(settings, tmp_path):
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        router.get(f"/transmissionAcknowledgement/{settings.dhl_username}").respond(500)
+        async with DhlClient(settings) as client:
+            with pytest.raises(RuntimeError, match="HTTP 500"):
+                await client.fetch_acknowledgements(tmp_path / "acks")
+
+
+def test_unparseable_acknowledgement_yields_no_errors():
+    """A garbled answer must not be mistaken for 'everything fine' silently —
+    it is logged — but it must not crash the run either."""
+    assert DhlClient._parse_ack_errors(b"<not xml") == []
+    assert DhlClient._parse_ack_errors(b"") == []
+
+
+# ── targeted status pull ───────────────────────────────────────────────────
+
+
+async def test_get_labels_for_order_filters_by_system_and_id(settings):
+    """Per-order pull does not drain the collective queue."""
+    with respx.mock(base_url=settings.dhl_base_url) as router:
+        route = router.get(f"/transmissionStatus/{settings.dhl_username}").respond(
+            200, content=SAMPLE_LABEL_XML
+        )
+        async with DhlClient(settings) as client:
+            labels = await client.get_labels_for_order(12345)
+
+    # The filtering itself is DHL's: what matters here is that the query goes
+    # out in the documented {System}_{Id} shape and the answer is parsed.
+    assert route.calls[0].request.url.params["orderId"] == f"{settings.dhl_username}_12345"
+    assert 12345 in [label.order_id for label in labels]

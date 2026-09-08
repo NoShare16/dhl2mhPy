@@ -60,5 +60,6 @@ def run(
         f"uploaded={summary.uploaded} "
         f"labels={summary.labels_received} "
         f"pushed={summary.tracking_pushed} "
-        f"skipped={summary.skipped}"
+        f"skipped={summary.skipped} "
+        f"rejected={summary.rejected}"
     )

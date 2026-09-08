@@ -22,3 +22,6 @@ tests/fixtures/*.xml
 
 # DHL-Herstellerdokumentation und Referenz-XMLs — lokal, nicht ins Repo.
 docs/dhl/
+
+# Archivierte DHL-Acknowledgements (consume-once, Rohantworten).
+var/

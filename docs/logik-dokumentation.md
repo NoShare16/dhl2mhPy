@@ -20,7 +20,7 @@ zum Überspringen führen. Die technische Code-Referenz steht separat in
 9. [Service-Auflösung & MatchCodes](#9-service-auflösung--matchcodes)
 10. [Gewicht & Volumen](#10-gewicht--volumen)
 11. [DHL-XML-Ausgabe](#11-dhl-xml-ausgabe)
-12. [Label-Rückschreiben](#12-label-rückschreiben)
+12. [Rückmeldung von DHL: Label und Acknowledgement](#12-rückmeldung-von-dhl-label-und-acknowledgement)
 13. [Dry-Run & Umgebungen](#13-dry-run--umgebungen)
 14. [Reihenfolge der Logik im Gesamtlauf](#14-reihenfolge-der-logik-im-gesamtlauf)
 
@@ -387,7 +387,14 @@ nichts. Die Fehlermeldung steht ausschließlich unter
 
 ---
 
-## 12. Label-Rückschreiben
+## 12. Rückmeldung von DHL: Label und Acknowledgement
+
+DHL antwortet auf zwei getrennten Wegen: der **Status** sagt, dass ein Label
+entstanden ist, das **Acknowledgement** sagt, ob der Auftrag überhaupt
+angenommen wurde. Ein abgelehnter Auftrag taucht im Status **gar nicht** auf —
+deshalb reicht der Statusabruf allein nicht aus.
+
+### 12.1 Label-Rückschreiben
 
 Nach dem Upload wird `DHL__LABEL_WAIT_SECONDS` (Default 180) gewartet, dann
 `transmissionStatus` gezogen.
@@ -402,8 +409,88 @@ Nach dem Upload wird `DHL__LABEL_WAIT_SECONDS` (Default 180) gewartet, dann
 > DHL dedupliziert Uploads serverseitig per `OrderId`; die `transmissionStatus`-
 > Antwort ist „consume-once" (nur einmal abrufbar).
 
+Für die Untersuchung eines **einzelnen** Auftrags gibt es
+`transmissionStatus/{Mandant}?orderId={System}_{Id}`
+(`DhlClient.get_labels_for_order`). Der gezielte Abruf leert die Sammelqueue
+nicht und ist deshalb der richtige Weg, wenn man einem konkreten Auftrag
+nachgeht. Der Lauf selbst nutzt weiterhin den Sammelabruf, weil dort auch
+Labels ankommen, die zu Aufträgen früherer Läufe gehören.
+
 {placeholder}
 *(Screenshot: Plenty-Auftrag nach Rückschreiben mit Tracking-Nummer)*
+
+### 12.2 Acknowledgement — hat DHL den Auftrag angenommen?
+
+Der Upload liefert HTTP 200 mit **leerem Body**. Ob der Auftrag angenommen
+wurde, steht dort nicht — und `transmissionStatus` meldet zu abgelehnten
+Aufträgen ebenfalls nichts. Genau so blieb der PartnerId-Fehler aus Abschnitt
+11.2 monatelang unentdeckt.
+
+Deshalb geht der Upload mit **`?ack=true`** raus. Die Antwort ist ein
+`TransmissionAcknowledgement`:
+
+```xml
+<AcknowledgementDetails>
+  <ErrorResponse>Customer [HDE, 4099999] already exists!</ErrorResponse>
+  <ErrorCode>CUSTOMER_ALREADY_EXISTS</ErrorCode>
+  <Message>… der zurückgespiegelte Auftrag …</Message>
+</AcknowledgementDetails>
+```
+
+- **`AcknowledgementDetails` steht immer da** — der Block spiegelt den Auftrag
+  zurück. Seine Anwesenheit sagt **nichts** über Erfolg oder Misserfolg.
+- **Abgelehnt ist ein Auftrag nur mit `ErrorCode`.** Nur darauf wird geprüft.
+- Ein abgelehnter Auftrag zählt nicht als übertragen: er landet nicht in
+  `uploaded`, sondern in `rejected`, und wird nicht zusätzlich als „ohne Label
+  zurückgekommen" gemeldet — er war nie bei DHL.
+
+**Fehlercodes**, die real vorkommen:
+
+| Code | Bedeutung |
+|---|---|
+| `CUSTOMER_ALREADY_EXISTS` | Receiver-PartnerId wiederholt (Abschnitt 11.2) |
+| `ORDER_ALREADY_EXISTS` | OrderId bei DHL schon bekannt — die täglichen Re-Uploads |
+| `INVALID_RECEIVER_ROUTING` | Adresse nicht belieferbar |
+| `UNKNOWN_SERVICE` | Service-MatchCode unbekannt (gesehen: `ISEK`, `KF`) |
+| `UNKNOWN_PARTNER` | Sender-PartnerId unbekannt (prod = 3, UAT = 1 verwechselt) |
+
+> Eine **Ablehnung registriert die OrderId nicht.** Derselbe Auftrag kann nach
+> Behebung der Ursache erneut hochgeladen werden. Erst ein *angenommener*
+> Auftrag löst beim nächsten Upload `ORDER_ALREADY_EXISTS` aus.
+
+### 12.3 Die Acknowledgement-Queue
+
+Zusätzlich zieht jeder Lauf
+`GET /transmissionAcknowledgement/{Mandant}` — die Sammelqueue für alles, was
+außerhalb des Laufs eingegangen ist. Zwei Eigenschaften bestimmen den Umgang
+damit:
+
+- **Consume-once.** DHL leert die Queue mit der Antwort. Es gibt keinen zweiten
+  Versuch — auch nicht, wenn der Abruf in einen Timeout läuft: die Queue ist
+  dann trotzdem leer und der Inhalt verloren. Genau so gingen bei der Analyse am
+  08.09.2026 die angesammelten prod-Meldungen verloren.
+- **Groß.** In UAT gemessen: 870 KB; prod deutlich mehr.
+
+Daraus folgen zwei Vorkehrungen: ein **eigener Read-Timeout** von 10 Minuten
+(`DHL__ACK_READ_TIMEOUT_SECONDS`) statt der 60 Sekunden der übrigen Aufrufe, und
+die Antwort wird **chunkweise direkt auf Platte geschrieben**
+(`DHL__ACK_ARCHIVE_DIR`, Default `var/dhl-acknowledgements`), *bevor* irgendetwas
+geparst wird. Ein Parser-Fehler kostet damit nichts — die Rohantwort liegt noch da.
+
+Ein fehlgeschlagener Abruf bricht den Lauf **nicht** ab: Labels sind zu diesem
+Zeitpunkt bereits zurückgeschrieben, und die Report-Mail soll trotzdem rausgehen.
+
+> Beobachtung aus UAT: Was über `?ack=true` schon inline gemeldet wurde,
+> erscheint **nicht** zusätzlich in der Queue. Der Lauf dedupliziert trotzdem
+> über (OrderId, ErrorCode), damit dieselbe Ablehnung nicht zweimal in der
+> Report-Mail steht.
+
+### 12.4 In der Report-Mail
+
+Ablehnungen bekommen einen **eigenen Abschnitt** („Von DHL abgelehnt"), getrennt
+von den übersprungenen Aufträgen — es ist ein anderer Fall: der Auftrag hat jede
+Prüfung hier bestanden und DHL hat ihn trotzdem abgewiesen. Gibt es *nur*
+Ablehnungen und keine Skips, wird die Mail trotzdem verschickt.
 
 ---
 
@@ -441,10 +528,12 @@ Nach dem Upload wird `DHL__LABEL_WAIT_SECONDS` (Default 180) gewartet, dann
     mit Shopware-Tag "B-Ware"
 6d. Skip: Artikel ohne Modellnummer aus beiden Quellen
 7. Service-Auflösung: MatchCodes, SWG/VPR, Gewicht/Volumen
-8. XML bauen + zu DHL hochladen
+8. XML bauen + zu DHL hochladen (mit ?ack=true; Ablehnungen zaehlen als
+   rejected, nicht als uploaded)
 9. Warten, Labels ziehen (dedupliziert)
+9b. Acknowledgement-Queue abrufen (streamend, Rohantwort archiviert)
 10. Tracking nach Plenty zurückschreiben   (entfällt bei --dry-run)
-11. Report-Mail für übersprungene Aufträge  (entfällt bei --dry-run)
+11. Report-Mail: übersprungene Aufträge + DHL-Ablehnungen (entfällt bei --dry-run)
 ```
 
 > Schritte 3 + 4 laufen bewusst **vor** dem Filter, damit Filter und Resolver

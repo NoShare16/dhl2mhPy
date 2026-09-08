@@ -53,6 +53,15 @@ class DhlSettings(BaseModel):
     label_wait_seconds: int = 180
     receiving_party_id: str = "DELIVERIT"
 
+    # The acknowledgement queue is consume-once and large (UAT measured 870 KB,
+    # prod is bigger): a read timeout still drains it server-side, so the answer
+    # would be lost. Hence its own generous timeout, separate from the 60 s the
+    # other DHL calls use.
+    ack_read_timeout_seconds: float = 600.0
+    # Raw acknowledgement responses are archived here before anything is parsed
+    # — same reason: there is no second chance to fetch them.
+    ack_archive_dir: str = "var/dhl-acknowledgements"
+
     uat_base_url: str = "https://deliverit-uat.dhl.com/webdsi/rest/latest"
     prod_base_url: str = "https://deliverit.dhl.com/webdsi/rest/latest"
 

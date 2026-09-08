@@ -4,7 +4,7 @@ from dhl2mh.config import Settings
 
 
 @pytest.fixture
-def settings(monkeypatch) -> Settings:
+def settings(monkeypatch, tmp_path) -> Settings:
     """Settings populated from env vars, ignoring any .env file."""
     env = {
         "APP_ENV": "dev",
@@ -21,6 +21,8 @@ def settings(monkeypatch) -> Settings:
         "DHL__PROD_PASSWORD": "prodpw",
         "DHL__UAT_BASE_URL": "https://dhl-uat.test/webdsi/rest/latest",
         "DHL__PROD_BASE_URL": "https://dhl-prod.test/webdsi/rest/latest",
+        # Keep archived acknowledgements out of the working directory.
+        "DHL__ACK_ARCHIVE_DIR": str(tmp_path / "acks"),
         "SMTP__HOST": "smtp.test",
         "SMTP__PORT": "587",
         "SMTP__USERNAME": "smtp-user",

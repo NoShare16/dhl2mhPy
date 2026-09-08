@@ -60,9 +60,9 @@ PlentyClient.iter_orders ─► map_order ─► _enrich_from_shopware_order
    ─► require_service_former_parent_ids ─► filter_orders
    ─► _enrich_from_shopware_product ─► _enrich_from_akeneo
    ─► _apply_second_choice ─► require_model_names ─► resolve_orders
-   ─► OrderXmlBuilder.build ─► DhlClient.upload_order_xml
-   ─► (warten) ─► DhlClient.get_labels ─► PlentyClient.update_package
-   ─► send_skipped_orders_report
+   ─► OrderXmlBuilder.build ─► DhlClient.upload_order_xml (?ack=true)
+   ─► (warten) ─► DhlClient.get_labels ─► DhlClient.fetch_acknowledgements
+   ─► PlentyClient.update_package ─► send_skipped_orders_report
 ```
 
 Vier externe Systeme:
@@ -266,14 +266,31 @@ unterscheiden sich nur in Base-URL und Client-Credentials.
 
 - **Auth:** `Basic base64("USER:SHA1_UPPER_HEX(PW)")` — DHL-Vorgabe, kein
   Security-Design (`_build_basic_auth`).
-- **`upload_order_xml(xml_bytes)`** → `POST /transmission/{mandant}`
-  (`Content-Type: text/xml`). Wirft bei non-2xx.
+- **`upload_order_xml(xml_bytes)`** → `POST /transmission/{mandant}?ack=true`
+  (`Content-Type: text/xml`). Gibt `list[AckError]` zurück — **leer = angenommen**.
+  Wirft nur bei non-2xx; eine *Ablehnung* ist HTTP 200 und damit ein Rückgabewert,
+  kein Fehler.
 - **`get_labels()`** → `list[LabelInfo]`. Zieht `/transmissionStatus/{mandant}`,
   parst alle `Status` vom Typ `OrderDocument` mit `Document` vom Typ `Label`,
   extrahiert `OrderId/Id` + `OrderIdent` (+ Barcode), und **dedupliziert pro
   `order_id`** (`_dedupe_by_order` — eine Nummer pro Auftrag).
 - Unvollständige Einträge (kein `OrderIdent`) werden als `dhl.label_incomplete`
   geloggt und übersprungen.
+- **`get_labels_for_order(order_id)`** → derselbe Endpunkt mit
+  `?orderId={System}_{Id}`. Leert die Sammelqueue **nicht** — für die gezielte
+  Untersuchung eines Auftrags. Der Lauf selbst nutzt ihn nicht.
+- **`fetch_acknowledgements(archive_dir)`** → `(Path, list[AckError])`. Zieht
+  `/transmissionAcknowledgement/{mandant}` **streamend** mit eigenem Read-Timeout
+  (`DHL__ACK_READ_TIMEOUT_SECONDS`, Default 600 s) und schreibt die Rohantwort
+  chunkweise nach `archive_dir`, *bevor* geparst wird. Beides folgt daraus, dass
+  der Abruf consume-once ist: ein Timeout leert die Queue serverseitig trotzdem.
+- **`_parse_ack_errors(xml)`** (statisch, für beide Wege): sammelt jeden
+  `AcknowledgementDetails`-Block **mit `ErrorCode`**. Ohne `ErrorCode` ist der
+  Block eine Bestätigung — er spiegelt den Auftrag nur zurück und steht immer da.
+  Unparsebare Antworten werden als `dhl.ack_unparseable` geloggt und liefern eine
+  leere Liste, statt den Lauf zu beenden.
+
+Details zur Semantik: Logik-Doku Abschnitt 12.
 
 ---
 
@@ -462,14 +479,23 @@ trotzdem mit HTTP 200). Name und Adresse kommen unverändert aus
 
 `run_pipeline(settings=None, *, items_per_page=50, category_concurrency=5,
 dry_run=False)` → `PipelineSummary(fetched, uploaded, labels_received,
-tracking_pushed, skipped)`.
+tracking_pushed, skipped, rejected)`.
 
 Ablauf siehe Abschnitt 2, durchnummeriert in der Logik-Doku (Abschnitt 14):
-11 Hauptschritte plus die Zwischenschritte 6b, 6c und 6d. Besonderheiten:
+11 Hauptschritte plus die Zwischenschritte 6b, 6c, 6d und 9b. Besonderheiten:
 
 - **Schritt 3+4 vor dem Filter:** Shopware-Anreicherung (former_parent + Festwasser,
   parallel mit Semaphore) und der Pflichtfeld-Skip laufen **vor** dem Filter,
   damit Filter und Resolver denselben Gruppierungs-Schlüssel sehen.
+- **Von DHL abgelehnte Aufträge** (`upload_order_xml` liefert `AckError`s)
+  zählen als `rejected`, nicht als `uploaded`, und werden aus
+  `missing_label_orders` herausgehalten — sonst stünden sie zweimal in der Mail,
+  einmal als Ablehnung und einmal als „ohne Label zurückgekommen".
+- **Schritt 9b (`_fetch_acknowledgements`)** zieht die Sammelqueue, best-effort:
+  ein Fehler dort wird geloggt, kostet dem Lauf aber nicht die Report-Mail —
+  Labels sind zu dem Zeitpunkt bereits zurückgeschrieben. `_new_ack_errors`
+  dedupliziert Queue-Einträge gegen die Ablehnungen aus den Uploads dieses Laufs
+  über (OrderId, ErrorCode).
 - **`dry_run`:** überspringt das Plenty-Rückschreiben (Schritt 10) und die Mail
   (Schritt 11) — der DHL-Upload läuft trotzdem (in Prod also echte Labels!).
 - **Schritt 6b (Akeneo) nach Schritt 6 (Shopware):** die PIM-Anreicherung
@@ -548,11 +574,16 @@ Betrieb via `deploy/dhl2mh-web.service` (systemd, lauscht nur auf
 
 ## 18. `notifications.py` — Report-Mail
 
-`send_skipped_orders_report(skipped, settings, *, now=None)` — verschickt eine
-deutschsprachige Klartext-Mail (SMTP + STARTTLS + Login) an
-`REPORT_RECIPIENT_EMAIL`. Betreff: „DHL Workflow: N Order(s) übersprungen — …".
-Body listet pro Auftrag ID, Datum, Kunde, Artikelzahl und Skip-Grund
-(`_build_body`). Bei leerer Liste passiert nichts.
+`send_skipped_orders_report(skipped, settings, *, ack_errors=None, now=None)` —
+verschickt eine deutschsprachige Klartext-Mail (SMTP + STARTTLS + Login) an
+`REPORT_RECIPIENT_EMAIL`. Body listet pro übersprungenem Auftrag ID, Datum,
+Kunde, Artikelzahl und Skip-Grund (`_build_body`).
+
+`ack_errors` (DHL-Ablehnungen) bekommen einen **eigenen Abschnitt** mit OrderId,
+`ErrorCode` und DHL-Meldung — ein anderer Fall als ein Skip: der Auftrag hat hier
+alles bestanden und DHL hat ihn abgewiesen. Der Betreff nennt beide Zahlen
+(`_build_subject`). Verschickt wird, sobald **eine** der beiden Listen gefüllt
+ist; sind beide leer, passiert nichts.
 
 ---
 
@@ -573,7 +604,7 @@ Beispiel-Responses. Abdeckung pro Modul:
 |-----------|-------|
 | `test_config.py` | Settings/Env |
 | `test_models.py` | DTO-Parsing |
-| `test_plenty_client.py` / `test_shopware_client.py` / `test_dhl_client.py` | Clients (Auth, Parsing, Dedup) |
+| `test_plenty_client.py` / `test_shopware_client.py` / `test_dhl_client.py` | Clients (Auth, Parsing, Dedup, Acknowledgement) |
 | `test_akeneo_client.py` | PIM-Client: Auth, Farb-Label + Cache, Platzhalter, MK→ML-Durchreichung |
 | `test_mapper.py` | ApiOrder → PlentyOrder, Package-Number |
 | `test_bundles.py` | Gruppierung, `is_service` |
@@ -583,8 +614,8 @@ Beispiel-Responses. Abdeckung pro Modul:
 | `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, B-Ware-Tag, Pflichtfeld-Skip |
 | `test_akeneo_mapping.py` | ProductName aus modell + Farbe, fehlendes modell → `None`, `AkeneoProduct.scalar` |
 | `test_xml_builder.py` | DHL-XML |
-| `test_notifications.py` | Report-Mail |
-| `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML, PIM-Ausfall, Skip ohne Modellnummer, `[ZW]`-Präfix |
+| `test_notifications.py` | Report-Mail, Abschnitt „Von DHL abgelehnt" |
+| `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML, PIM-Ausfall, Skip ohne Modellnummer, `[ZW]`-Präfix, DHL-Ablehnungen |
 | `test_web.py` | Web-Trigger: Login, Session, Single-Slot-Lauf |
 
 Ausführen: `python -m pytest -q`.
