@@ -23,7 +23,7 @@ import respx
 import structlog
 
 from dhl2mh.mapping import COLOR_GROUP_ID, SECOND_CHOICE_TAG_ID, SERVICE_AG
-from dhl2mh.pipeline import run_pipeline
+from dhl2mh.pipeline import LABEL_MISSING_REASON, run_pipeline
 
 FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
 
@@ -44,6 +44,43 @@ _SAMPLE_LABEL_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
   </Messages>
 </dsi:Transmission>
 """
+
+
+# A status answer without any label — what a rejected order really gets.
+_EMPTY_STATUS_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<dsi:Transmission xmlns:dsi="http://www.it4logistics.de/i4ldata/ext"/>
+"""
+
+# An empty queue: DHL answers with the envelope and no AcknowledgementDetails.
+_EMPTY_ACK_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ns6:TransmissionAcknowledgement xmlns:ns6="http://www.it4logistics.de/i4ldata/ext">
+  <SendingPartyID>DELIVERIT</SendingPartyID>
+  <ReceivingPartyID>HDE</ReceivingPartyID>
+</ns6:TransmissionAcknowledgement>
+"""
+
+
+def _rejection_ack(order_id: int, code: str, text: str = "abgelehnt") -> bytes:
+    """A TransmissionAcknowledgement rejecting one order, shaped like the real
+    DHL answer: ErrorResponse/ErrorCode sit next to the echoed order."""
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<ns6:TransmissionAcknowledgement xmlns:ns6="http://www.it4logistics.de/i4ldata/ext">
+  <SendingPartyID>DELIVERIT</SendingPartyID>
+  <ReceivingPartyID>HDE</ReceivingPartyID>
+  <AcknowledgementDetails>
+    <ErrorResponse>{text}</ErrorResponse>
+    <ErrorCode>{code}</ErrorCode>
+    <Message>
+      <MessageContent>
+        <ns6:Order>
+          <OrderId><System>HDE</System><Id>{order_id}</Id></OrderId>
+          <OrderNr>{order_id}</OrderNr>
+        </ns6:Order>
+      </MessageContent>
+    </Message>
+  </AcknowledgementDetails>
+</ns6:TransmissionAcknowledgement>
+""".encode()
 
 
 def _synthetic_clean_order(variation_number: str | None = None) -> dict:
@@ -259,6 +296,9 @@ async def test_pipeline_smoke_runs_end_to_end(settings):
         router.get(f"{dhl_base}/transmissionStatus/{settings.dhl_username}").respond(
             200, content=_SAMPLE_LABEL_XML
         )
+        router.get(
+            f"{dhl_base}/transmissionAcknowledgement/{settings.dhl_username}"
+        ).respond(200, content=_EMPTY_ACK_XML)
 
         summary = await run_pipeline(settings)
 
@@ -327,6 +367,9 @@ async def test_pipeline_dry_run_uploads_but_skips_plenty_and_mail(settings):
         router.get(f"{dhl_base}/transmissionStatus/{settings.dhl_username}").respond(
             200, content=_SAMPLE_LABEL_XML
         )
+        router.get(
+            f"{dhl_base}/transmissionAcknowledgement/{settings.dhl_username}"
+        ).respond(200, content=_EMPTY_ACK_XML)
 
         summary = await run_pipeline(settings, dry_run=True)
 
@@ -389,6 +432,9 @@ async def test_pipeline_logs_per_order_skip_reason_and_missing_labels(settings):
         router.get(f"{dhl_base}/transmissionStatus/{settings.dhl_username}").respond(
             200, content=_SAMPLE_LABEL_XML
         )
+        router.get(
+            f"{dhl_base}/transmissionAcknowledgement/{settings.dhl_username}"
+        ).respond(200, content=_EMPTY_ACK_XML)
 
         await run_pipeline(settings)
 
@@ -474,6 +520,9 @@ def _mock_common_routes(
     router.get(f"{dhl_base}/transmissionStatus/{settings.dhl_username}").respond(
         200, content=_SAMPLE_LABEL_XML
     )
+    router.get(
+        f"{dhl_base}/transmissionAcknowledgement/{settings.dhl_username}"
+    ).respond(200, content=_EMPTY_ACK_XML)
 
 
 async def test_akeneo_model_and_color_become_the_dhl_product_name(akeneo_settings):
@@ -842,3 +891,115 @@ async def test_pipeline_with_no_orders_sends_no_mail_and_does_not_upload(setting
     assert summary.skipped == 0
     assert dhl_upload.call_count == 0
     smtp_cls.assert_not_called()
+
+
+# ── DHL rejections (acknowledgement) ───────────────────────────────────────
+
+
+async def test_rejected_upload_is_not_counted_and_lands_in_the_report(settings):
+    """A rejected order was never accepted by DHL: it must not be reported as
+    uploaded, and it must reach the report with DHL's own error code."""
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP") as smtp_cls,
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        smtp_client = MagicMock()
+        smtp_cls.return_value.__enter__.return_value = smtp_client
+        _mock_common_routes(router, settings)
+        router.post(f"{settings.dhl_base_url}/transmission/{settings.dhl_username}").respond(
+            200, content=_rejection_ack(900001, "CUSTOMER_ALREADY_EXISTS")
+        )
+        # A rejected order never gets a label.
+        router.get(
+            f"{settings.dhl_base_url}/transmissionStatus/{settings.dhl_username}"
+        ).respond(200, content=_EMPTY_STATUS_XML)
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 0
+    assert summary.rejected == 1
+
+    msg = smtp_client.send_message.call_args[0][0]
+    assert "1 von DHL abgelehnt" in msg["Subject"]
+    body = msg.get_content()
+    assert "CUSTOMER_ALREADY_EXISTS" in body
+    assert "900001" in body
+    # Not also listed as "transmitted but no label" — it was never transmitted.
+    assert LABEL_MISSING_REASON not in body
+    assert summary.tracking_pushed == 0
+
+
+async def test_acknowledgement_queue_errors_reach_the_report(settings):
+    """Rejections for orders from earlier runs only exist in the queue."""
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP") as smtp_cls,
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        smtp_client = MagicMock()
+        smtp_cls.return_value.__enter__.return_value = smtp_client
+        _mock_common_routes(router, settings)
+        router.post(f"{settings.dhl_base_url}/transmission/{settings.dhl_username}").respond(
+            200, content=_EMPTY_ACK_XML
+        )
+        router.get(
+            f"{settings.dhl_base_url}/transmissionAcknowledgement/{settings.dhl_username}"
+        ).respond(200, content=_rejection_ack(241232, "ORDER_ALREADY_EXISTS"))
+
+        summary = await run_pipeline(settings)
+
+    assert summary.uploaded == 1  # this run's order went through
+    msg = smtp_client.send_message.call_args[0][0]
+    body = msg.get_content()
+    assert "ORDER_ALREADY_EXISTS" in body
+    assert "241232" in body
+
+
+async def test_same_rejection_in_upload_and_queue_is_reported_once(settings):
+    """An order uploaded with ack=true can also surface in the queue."""
+    rejection = _rejection_ack(900001, "CUSTOMER_ALREADY_EXISTS")
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP") as smtp_cls,
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        smtp_client = MagicMock()
+        smtp_cls.return_value.__enter__.return_value = smtp_client
+        _mock_common_routes(router, settings)
+        router.post(f"{settings.dhl_base_url}/transmission/{settings.dhl_username}").respond(
+            200, content=rejection
+        )
+        router.get(
+            f"{settings.dhl_base_url}/transmissionAcknowledgement/{settings.dhl_username}"
+        ).respond(200, content=rejection)
+
+        await run_pipeline(settings)
+
+    body = smtp_client.send_message.call_args[0][0].get_content()
+    assert body.count("CUSTOMER_ALREADY_EXISTS") == 1
+
+
+async def test_acknowledgement_fetch_failure_does_not_lose_the_report(settings):
+    """The labels are already written back when the queue is drained — a failure
+    there must not cost the run its report mail."""
+    with (
+        respx.mock(assert_all_called=False) as router,
+        patch("smtplib.SMTP") as smtp_cls,
+        patch("asyncio.sleep", new=_no_sleep),
+    ):
+        smtp_client = MagicMock()
+        smtp_cls.return_value.__enter__.return_value = smtp_client
+        _mock_common_routes(router, settings)
+        router.post(f"{settings.dhl_base_url}/transmission/{settings.dhl_username}").respond(
+            200, content=_rejection_ack(900001, "UNKNOWN_SERVICE")
+        )
+        router.get(
+            f"{settings.dhl_base_url}/transmissionAcknowledgement/{settings.dhl_username}"
+        ).respond(503)
+
+        summary = await run_pipeline(settings)
+
+    assert summary.rejected == 1
+    body = smtp_client.send_message.call_args[0][0].get_content()
+    assert "UNKNOWN_SERVICE" in body
