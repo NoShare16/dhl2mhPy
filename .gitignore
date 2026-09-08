@@ -19,3 +19,6 @@ dist/
 # History was scrubbed (git filter-repo); the files exist only on dev machines.
 tests/fixtures/*.json
 tests/fixtures/*.xml
+
+# DHL-Herstellerdokumentation und Referenz-XMLs — lokal, nicht ins Repo.
+docs/dhl/
