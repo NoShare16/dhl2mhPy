@@ -13,19 +13,18 @@ Three orders flow through:
 """
 
 import json
-from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import httpx
 import respx
 import structlog
 
-from dhl2mh.mapping import COLOR_GROUP_ID, SECOND_CHOICE_TAG_ID, SERVICE_AG
+from dhl2mh.mapping.constants import COLOR_GROUP_ID, SECOND_CHOICE_TAG_ID, SERVICE_AG
 from dhl2mh.pipeline import LABEL_MISSING_REASON, run_pipeline
+from tests.paths import FIXTURES
 
-FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
+FIXTURE = FIXTURES / "plenty_order_bundle.json"
 
 _SAMPLE_LABEL_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 <dsi:Transmission xmlns:dsi="http://www.it4logistics.de/i4ldata/ext">

@@ -10,16 +10,16 @@ siehe ergänzend [`logik-dokumentation.md`](./logik-dokumentation.md).
 2. [Architektur & Datenfluss](#2-architektur--datenfluss)
 3. [Projektstruktur](#3-projektstruktur)
 4. [`config.py` — Konfiguration](#4-configpy--konfiguration)
-5. [`models.py` — Datenmodelle](#5-modelspy--datenmodelle)
+5. [`models/` — Datenmodelle](#5-models--datenmodelle)
 6. [Clients](#6-clients)
-7. [`mapper.py` — Plenty → Domain](#7-mapperpy--plenty--domain)
-8. [`bundles.py` — Gruppierung](#8-bundlespy--gruppierung)
-9. [`mapping.py` — Konstanten & MatchCodes](#9-mappingpy--konstanten--matchcodes)
-10. [`filter.py` — Versandfilter](#10-filterpy--versandfilter)
-11. [`service_resolver.py` — Service-Auflösung](#11-service_resolverpy--service-auflösung)
-12. [`shopware_mapping.py` — Shopware-Anreicherung](#12-shopware_mappingpy--shopware-anreicherung)
-13. [`akeneo_mapping.py` — PIM-Name](#13-akeneo_mappingpy--pim-name)
-14. [`xml_builder.py` — DHL-XML](#14-xml_builderpy--dhl-xml)
+7. [`mapping/plenty.py` — Plenty → Domain](#7-mappingplentypy--plenty--domain)
+8. [`domain/bundles.py` — Gruppierung](#8-domainbundlespy--gruppierung)
+9. [`mapping/constants.py` — Konstanten & MatchCodes](#9-mappingconstantspy--konstanten--matchcodes)
+10. [`domain/filter.py` — Versandfilter](#10-domainfilterpy--versandfilter)
+11. [`domain/service_resolver.py` — Service-Auflösung](#11-domainservice_resolverpy--service-auflösung)
+12. [`mapping/shopware.py` — Shopware-Anreicherung](#12-mappingshopwarepy--shopware-anreicherung)
+13. [`mapping/akeneo.py` — PIM-Name](#13-mappingakeneopy--pim-name)
+14. [`mapping/xml_builder.py` — DHL-XML](#14-mappingxml_builderpy--dhl-xml)
 15. [`pipeline.py` — Orchestrierung](#15-pipelinepy--orchestrierung)
 16. [`cli.py` — Kommandozeile](#16-clipy--kommandozeile)
 17. [`web.py` — Manueller Web-Trigger](#17-webpy--manueller-web-trigger)
@@ -83,30 +83,37 @@ fällt das PIM aus, läuft der Workflow mit dem Shopware-Namen weiter.
 
 ```
 src/dhl2mh/
-├── __main__.py          # python -m dhl2mh → cli.app
-├── cli.py               # Typer-CLI: `run` (+ --dry-run)
-├── pipeline.py          # Orchestrierung des Gesamtlaufs
-├── config.py            # Settings (pydantic-settings, .env)
-├── models.py            # API-DTOs, Shopware-DTOs, Domain-Modelle
-├── mapper.py            # ApiOrder → PlentyOrder
-├── bundles.py           # Gruppierung + is_service
-├── mapping.py           # Service-IDs, Whitelist, MatchCodes
-├── filter.py            # Pass/Skip-Prädikate
-├── service_resolver.py  # Services → MatchCodes, SWG/VPR, Gewicht/Volumen
-├── shopware_mapping.py  # former_parent, Festwasser, Fallback-Name, Pflichtfeld-Skip
-├── akeneo_mapping.py    # ProductName aus PIM-modell + Farbe
-├── xml_builder.py       # DHL-DeliverIT-XML
-├── web.py               # optionaler manueller Web-Trigger (FastAPI)
-├── notifications.py     # SMTP-Report-Mail
-├── logging_setup.py     # structlog-Konfiguration
-└── clients/
-    ├── plenty.py
-    ├── shopware.py
-    ├── akeneo.py
-    └── dhl.py
-tests/                   # pytest-Suite (+ fixtures/)
-docs/                    # diese Dokumentation
-deploy/                  # dhl2mh-web.service (systemd-Unit für den Web-Trigger)
+├── __main__.py             # python -m dhl2mh → cli.app
+├── cli.py                  # Typer-CLI: `run` (+ --dry-run)
+├── pipeline.py             # Orchestrierung des Gesamtlaufs
+├── config.py               # Settings (pydantic-settings, .env)
+├── web.py                  # optionaler manueller Web-Trigger (FastAPI)
+├── notifications.py        # SMTP-Report-Mail
+├── logging_setup.py        # structlog-Konfiguration
+├── models/                 # Datenmodelle, nach Herkunft getrennt
+│   ├── base.py             # ApiModel (camelCase-Aliase, extra=ignore)
+│   ├── plenty.py           # Plenty-REST-DTOs (Api*)
+│   ├── shopware.py         # Shopware-DTOs (Sw*)
+│   ├── akeneo.py           # Akeneo-PIM-DTOs (Akeneo*)
+│   └── order.py            # Domain-Modelle (PlentyOrder, OrderItem, …)
+├── clients/                # HTTP-Zugriff auf die Fremdsysteme
+│   ├── plenty.py
+│   ├── shopware.py
+│   ├── akeneo.py
+│   └── dhl.py
+├── mapping/                # Übersetzung Fremdformat ↔ Domain
+│   ├── constants.py        # Service-IDs, Whitelist, MatchCodes
+│   ├── plenty.py           # ApiOrder → PlentyOrder
+│   ├── shopware.py         # former_parent, Festwasser, Fallback-Name, Pflichtfeld-Skip
+│   ├── akeneo.py           # ProductName aus PIM-modell + Farbe
+│   └── xml_builder.py      # DHL-DeliverIT-XML
+└── domain/                 # Fachregeln auf den Domain-Modellen
+    ├── bundles.py          # Gruppierung + is_service
+    ├── filter.py           # Pass/Skip-Prädikate
+    └── service_resolver.py # Services → MatchCodes, SWG/VPR, Gewicht/Volumen
+tests/                      # pytest-Suite, spiegelt src/ (+ fixtures/)
+docs/                       # diese Dokumentation
+deploy/                     # dhl2mh-web.service (systemd-Unit für den Web-Trigger)
 ```
 
 ---
@@ -142,10 +149,13 @@ Pydantic-Settings, geladen aus `.env` (verschachtelt mit Trenner `__`).
 
 ---
 
-## 5. `models.py` — Datenmodelle
+## 5. `models/` — Datenmodelle
 
-Drei Gruppen. Alle API-Modelle erben von `_ApiModel`
-(`alias_generator=to_camel`, `populate_by_name=True`, `extra="ignore"`).
+Ein Paket mit einem Modul je Herkunft (`plenty.py`, `shopware.py`, `akeneo.py`,
+`order.py`); `models/__init__.py` re-exportiert alles, `from dhl2mh.models import
+PlentyOrder` funktioniert also unverändert. Alle API-Modelle erben von `ApiModel`
+aus `models/base.py` (`alias_generator=to_camel`, `populate_by_name=True`,
+`extra="ignore"`).
 
 ### 5.1 Plenty-API-DTOs (rohes REST-Format)
 
@@ -294,7 +304,7 @@ Details zur Semantik: Logik-Doku Abschnitt 12.
 
 ---
 
-## 7. `mapper.py` — Plenty → Domain
+## 7. `mapping/plenty.py` — Plenty → Domain
 
 `map_order(api, country_codes)` baut aus `ApiOrder` ein `PlentyOrder`:
 
@@ -316,7 +326,7 @@ Konstanten: `ADDRESS_RELATION_DELIVERY=2`, `RECEIVER_RELATION="receiver"`,
 
 ---
 
-## 8. `bundles.py` — Gruppierung
+## 8. `domain/bundles.py` — Gruppierung
 
 Geteilt von Filter und Resolver.
 
@@ -329,7 +339,7 @@ Geteilt von Filter und Resolver.
 
 ---
 
-## 9. `mapping.py` — Konstanten & MatchCodes
+## 9. `mapping/constants.py` — Konstanten & MatchCodes
 
 - **Service-IDs** (`SERVICE_AG`, `SERVICE_INSTALL=783139`, `SERVICE_SWG`, …) und
   **`SERVICE_WHITELIST`** (14 IDs).
@@ -362,7 +372,7 @@ Geteilt von Filter und Resolver.
 
 ---
 
-## 10. `filter.py` — Versandfilter
+## 10. `domain/filter.py` — Versandfilter
 
 `filter_orders(orders)` → `FilterResult(passed, skipped)`. Skip-Gründe
 (`_why_skip`, in Reihenfolge):
@@ -390,7 +400,7 @@ zählt nicht als Modellnummer.
 
 ---
 
-## 11. `service_resolver.py` — Service-Auflösung
+## 11. `domain/service_resolver.py` — Service-Auflösung
 
 `resolve_orders(orders)` → `ResolveResult(passed, skipped)`; mutiert Artikel in-place.
 
@@ -407,7 +417,7 @@ Unbekannte Service-IDs → Auftrag wird geskippt.
 
 ---
 
-## 12. `shopware_mapping.py` — Shopware-Anreicherung
+## 12. `mapping/shopware.py` — Shopware-Anreicherung
 
 Reine Funktionen (API-entkoppelt, gut testbar):
 
@@ -437,7 +447,7 @@ Details siehe Logik-Doku (Abschnitte 3–7).
 
 ---
 
-## 13. `akeneo_mapping.py` — PIM-Name
+## 13. `mapping/akeneo.py` — PIM-Name
 
 - **`akeneo_model_name(info)`** → DHL-`ProductName` aus dem PIM-Attribut
   `modell` + Farb-Label, z. B. `UG 5005-30 Schwarz`, sonst `None`.
@@ -452,7 +462,7 @@ Stichprobe von 3.000 MK-Produkten unterschieden sich beide in 2.634 Fällen.
 
 ---
 
-## 14. `xml_builder.py` — DHL-XML
+## 14. `mapping/xml_builder.py` — DHL-XML
 
 `OrderXmlBuilder` (stateless) baut die DSI/it4logistics-XML
 (`build(order) -> bytes`). Konstruktor-Parameter sind die Umgebungs-Schalter
@@ -598,22 +608,24 @@ ist; sind beide leer, passiert nichts.
 ## 20. Tests
 
 `pytest` (async) mit `respx` für HTTP-Mocks; `tests/fixtures/` enthält reale
-Beispiel-Responses. Abdeckung pro Modul:
+Beispiel-Responses. Die Testdateien spiegeln die Paketstruktur von `src/`
+(`tests/clients/`, `tests/mapping/`, `tests/domain/`); gemeinsame Pfade stehen in
+`tests/paths.py`. Abdeckung pro Modul:
 
 | Testdatei | Fokus |
 |-----------|-------|
 | `test_config.py` | Settings/Env |
 | `test_models.py` | DTO-Parsing |
-| `test_plenty_client.py` / `test_shopware_client.py` / `test_dhl_client.py` | Clients (Auth, Parsing, Dedup, Acknowledgement) |
-| `test_akeneo_client.py` | PIM-Client: Auth, Farb-Label + Cache, Platzhalter, MK→ML-Durchreichung |
-| `test_mapper.py` | ApiOrder → PlentyOrder, Package-Number |
-| `test_bundles.py` | Gruppierung, `is_service` |
-| `test_mapping.py` | MatchCodes, Festwasser/AWS |
-| `test_filter.py` | Skip-Regeln inkl. Modellnummer-Pflicht |
-| `test_service_resolver.py` | Service-Auflösung, Rabatt-Ignorierung |
-| `test_shopware_mapping.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, B-Ware-Tag, Pflichtfeld-Skip |
-| `test_akeneo_mapping.py` | ProductName aus modell + Farbe, fehlendes modell → `None`, `AkeneoProduct.scalar` |
-| `test_xml_builder.py` | DHL-XML |
+| `clients/test_plenty.py` / `clients/test_shopware.py` / `clients/test_dhl.py` | Clients (Auth, Parsing, Dedup, Acknowledgement) |
+| `clients/test_akeneo.py` | PIM-Client: Auth, Farb-Label + Cache, Platzhalter, MK→ML-Durchreichung |
+| `mapping/test_plenty.py` | ApiOrder → PlentyOrder, Package-Number |
+| `domain/test_bundles.py` | Gruppierung, `is_service` |
+| `mapping/test_constants.py` | MatchCodes, Festwasser/AWS |
+| `domain/test_filter.py` | Skip-Regeln inkl. Modellnummer-Pflicht |
+| `domain/test_service_resolver.py` | Service-Auflösung, Rabatt-Ignorierung |
+| `mapping/test_shopware.py` | former_parent (inkl. 1:n-Split + Alias), Festwasser, Fallback-Name, B-Ware-Tag, Pflichtfeld-Skip |
+| `mapping/test_akeneo.py` | ProductName aus modell + Farbe, fehlendes modell → `None`, `AkeneoProduct.scalar` |
+| `mapping/test_xml_builder.py` | DHL-XML |
 | `test_notifications.py` | Report-Mail, Abschnitt „Von DHL abgelehnt" |
 | `test_pipeline.py` | End-to-End-Smoke + Dry-Run + PIM-Name im XML, PIM-Ausfall, Skip ohne Modellnummer, `[ZW]`-Präfix, DHL-Ablehnungen |
 | `test_web.py` | Web-Trigger: Login, Session, Single-Slot-Lauf |

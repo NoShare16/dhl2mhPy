@@ -1,4 +1,4 @@
-from dhl2mh.akeneo_mapping import akeneo_model_name
+from dhl2mh.mapping.akeneo import akeneo_model_name
 from dhl2mh.models import AkeneoProduct, AkeneoProductInfo
 
 

@@ -84,7 +84,7 @@ WATER_CONNECTION_MATCH_CODE: Final = "AWS"
 
 # ── Shopware property group "Farbe" — the color option name is combined with the
 # product's manufacturerNumber to form the *fallback* DHL ProductName (see
-# shopware_mapping.product_display_name). The primary name comes from Akeneo.
+# mapping.shopware.product_display_name). The primary name comes from Akeneo.
 COLOR_GROUP_ID: Final = "b7c2c23b73454356bec99f10042600eb"
 
 # ── Shopware tag "B-Ware" — a second-choice article. Its DHL ProductName is

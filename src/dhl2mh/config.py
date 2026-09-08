@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["dev", "prod"]

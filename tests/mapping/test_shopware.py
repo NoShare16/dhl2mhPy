@@ -1,14 +1,20 @@
 import json
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 
-from dhl2mh.mapping import (
+from dhl2mh.mapping.constants import (
     COLOR_GROUP_ID,
     SECOND_CHOICE_TAG_ID,
     SERVICE_AG,
     SERVICE_ISEK,
     SERVICE_ISEK_KG,
+)
+from dhl2mh.mapping.shopware import (
+    assign_former_parent_ids,
+    assign_water_connection,
+    is_second_choice,
+    product_model_name,
+    require_service_former_parent_ids,
 )
 from dhl2mh.models import (
     OrderItem,
@@ -20,16 +26,10 @@ from dhl2mh.models import (
     SwProductInfo,
     SwPropertyOption,
 )
-from dhl2mh.shopware_mapping import (
-    assign_former_parent_ids,
-    assign_water_connection,
-    is_second_choice,
-    product_model_name,
-    require_service_former_parent_ids,
-)
+from tests.paths import FIXTURES
 
-SW_ORDER_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_mit_accept.json"
-SW_ORDER_EXTENDED_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_erweitert.json"
+SW_ORDER_FIXTURE = FIXTURES / "sw_order_mit_accept.json"
+SW_ORDER_EXTENDED_FIXTURE = FIXTURES / "sw_order_erweitert.json"
 WATER_GROUP_ID = "8910dbddf00a4d94998289840033982d"
 
 FORMER_PARENT = "019ed4680e07739a8bda655a837f5cc2"
@@ -46,7 +46,8 @@ def _order(*items: OrderItem) -> PlentyOrder:
 
 
 def _sw_order() -> SwOrder:
-    return SwOrder.model_validate(json.loads(SW_ORDER_FIXTURE.read_text(encoding="utf-8"))["data"][0])
+    payload = json.loads(SW_ORDER_FIXTURE.read_text(encoding="utf-8"))
+    return SwOrder.model_validate(payload["data"][0])
 
 
 def test_assigns_former_parent_id_to_matching_positions():

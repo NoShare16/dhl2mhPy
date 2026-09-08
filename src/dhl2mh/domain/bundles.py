@@ -10,7 +10,7 @@ former_parent_id form single-item bundles of their own.
 
 from collections import OrderedDict
 
-from dhl2mh.mapping import (
+from dhl2mh.mapping.constants import (
     SERVICE_WHITELIST,
     STOCK_LIMITATION_ARTICLE,
     STOCK_LIMITATION_SERVICE,
