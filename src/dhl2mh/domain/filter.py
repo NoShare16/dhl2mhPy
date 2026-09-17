@@ -2,7 +2,7 @@
 
 Returns the orders that should continue down the pipeline plus a list of
 SkippedOrder records for the report mail. Service resolution (MatchCodes,
-auto-attached SWG/VPR) happens later in service_resolver.py.
+auto-attached SWG/VPR) happens later in domain/service_resolver.py.
 
 Two gates, run at different points of the pipeline:
 
@@ -14,8 +14,8 @@ Two gates, run at different points of the pipeline:
 
 from typing import NamedTuple
 
-from dhl2mh.bundles import group_by_bundle, split_articles_and_services
-from dhl2mh.mapping import SHIPPABLE_ORDER_TYPE_IDS, STOCK_LIMITATION_ARTICLE
+from dhl2mh.domain.bundles import group_by_bundle, split_articles_and_services
+from dhl2mh.mapping.constants import SHIPPABLE_ORDER_TYPE_IDS, STOCK_LIMITATION_ARTICLE
 from dhl2mh.models import OrderItem, PlentyOrder, SkippedOrder
 
 

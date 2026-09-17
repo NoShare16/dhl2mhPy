@@ -13,26 +13,26 @@ from typing import NamedTuple
 
 import structlog
 
-from dhl2mh.akeneo_mapping import akeneo_model_name
 from dhl2mh.clients.akeneo import AkeneoProductLookup
 from dhl2mh.clients.dhl import DhlClient
 from dhl2mh.clients.plenty import PlentyClient
 from dhl2mh.clients.shopware import ShopwareClient
 from dhl2mh.config import Settings, get_settings
-from dhl2mh.filter import filter_orders, require_model_names
-from dhl2mh.mapper import map_order
-from dhl2mh.mapping import SECOND_CHOICE_PREFIX, STOCK_LIMITATION_ARTICLE
-from dhl2mh.models import AckError, OrderItem, PackageData, PlentyOrder, SkippedOrder
-from dhl2mh.notifications import send_skipped_orders_report
-from dhl2mh.service_resolver import resolve_orders
-from dhl2mh.shopware_mapping import (
+from dhl2mh.domain.filter import filter_orders, require_model_names
+from dhl2mh.domain.service_resolver import resolve_orders
+from dhl2mh.mapping.akeneo import akeneo_model_name
+from dhl2mh.mapping.constants import SECOND_CHOICE_PREFIX, STOCK_LIMITATION_ARTICLE
+from dhl2mh.mapping.plenty import map_order
+from dhl2mh.mapping.shopware import (
     assign_former_parent_ids,
     assign_water_connection,
     is_second_choice,
     product_model_name,
     require_service_former_parent_ids,
 )
-from dhl2mh.xml_builder import OrderXmlBuilder
+from dhl2mh.mapping.xml_builder import OrderXmlBuilder
+from dhl2mh.models import AckError, OrderItem, PackageData, PlentyOrder, SkippedOrder
+from dhl2mh.notifications import send_skipped_orders_report
 
 log = structlog.get_logger()
 

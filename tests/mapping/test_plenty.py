@@ -1,17 +1,17 @@
 import json
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 
-from dhl2mh.mapper import map_order
+from dhl2mh.mapping.plenty import map_order
 from dhl2mh.models import ApiOrder, ApiOrderPage
+from tests.paths import FIXTURES
 
-FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
-ORDERS_FIXTURE = Path(__file__).parent / "fixtures" / "plenty_orders.json"
+FIXTURE = FIXTURES / "plenty_order_bundle.json"
+ORDERS_FIXTURE = FIXTURES / "plenty_orders.json"
 ARTICLE_BUNDLE_FIXTURE = (
-    Path(__file__).parent / "fixtures" / "plenty_order_mit_bundle_artikel.json"
+    FIXTURES / "plenty_order_mit_bundle_artikel.json"
 )
 COUNTRIES = {1: "DE", 2: "AT"}
 

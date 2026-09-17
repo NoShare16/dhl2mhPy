@@ -10,8 +10,8 @@ by the IS/E-AN decision for SERVICE_INSTALL).
 from decimal import Decimal
 from typing import NamedTuple
 
-from dhl2mh.bundles import group_by_bundle, split_articles_and_services
-from dhl2mh.mapping import (
+from dhl2mh.domain.bundles import group_by_bundle, split_articles_and_services
+from dhl2mh.mapping.constants import (
     HEAVY_LIFT_SERVICE_ID,
     HEAVY_LIFT_THRESHOLD_KG,
     VPR_MATCH_CODE,

@@ -185,7 +185,7 @@ SAMPLE_LABEL_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 
 def test_parse_label_xml_extracts_only_label_documents(settings):
     labels = DhlClient._parse_label_xml(SAMPLE_LABEL_XML)
-    assert [l.order_id for l in labels] == [12345, 67890]
+    assert [label.order_id for label in labels] == [12345, 67890]
     assert labels[0].order_ident == "00340434161094018448"
     assert labels[0].barcode == "00340434161094018448"
     assert labels[1].order_ident == "00340434161094999999"

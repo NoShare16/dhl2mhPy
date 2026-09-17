@@ -24,7 +24,7 @@ import httpx
 import structlog
 
 from dhl2mh.config import AkeneoInstanceSettings, AkeneoSettings, Settings
-from dhl2mh.mapping import (
+from dhl2mh.mapping.constants import (
     AKENEO_COLOR_ATTRIBUTE,
     AKENEO_COLOR_PLACEHOLDER_CODES,
     AKENEO_LABEL_LOCALE,

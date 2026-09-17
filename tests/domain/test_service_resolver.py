@@ -1,9 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
 
-import pytest
-
-from dhl2mh.mapping import (
+from dhl2mh.domain.service_resolver import resolve_order, resolve_orders
+from dhl2mh.mapping.constants import (
     HERDE_CATEGORY_IDS,
     SERVICE_AG,
     SERVICE_AWS_DPW,
@@ -13,8 +12,6 @@ from dhl2mh.mapping import (
     SERVICE_VPR,
 )
 from dhl2mh.models import OrderItem, PlentyOrder
-from dhl2mh.service_resolver import resolve_order, resolve_orders
-
 
 # ── builders ───────────────────────────────────────────────────────────────
 

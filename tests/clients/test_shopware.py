@@ -1,15 +1,15 @@
 import json as jsonlib
-from pathlib import Path
 
 import httpx
 import pytest
 import respx
 
 from dhl2mh.clients.shopware import ShopwareAuthError, ShopwareClient
-from dhl2mh.mapping import COLOR_GROUP_ID
+from dhl2mh.mapping.constants import COLOR_GROUP_ID
+from tests.paths import FIXTURES
 
-SW_ORDER_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_mit_accept.json"
-SW_PRODUCT_FIXTURE = Path(__file__).parent / "fixtures" / "sw_order_prop.json"
+SW_ORDER_FIXTURE = FIXTURES / "sw_order_mit_accept.json"
+SW_PRODUCT_FIXTURE = FIXTURES / "sw_order_prop.json"
 
 
 async def test_get_product_info_parses_categories_name_and_color(settings):

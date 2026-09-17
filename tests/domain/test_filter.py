@@ -1,16 +1,16 @@
 import json
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 
-from dhl2mh.filter import filter_orders, require_model_names
-from dhl2mh.mapper import map_order
-from dhl2mh.mapping import SERVICE_AG, SERVICE_EAN
+from dhl2mh.domain.filter import filter_orders, require_model_names
+from dhl2mh.mapping.constants import SERVICE_AG, SERVICE_EAN
+from dhl2mh.mapping.plenty import map_order
 from dhl2mh.models import Address, OrderItem, PlentyOrder
+from tests.paths import FIXTURES
 
-FIXTURE = Path(__file__).parent / "fixtures" / "plenty_order_bundle.json"
+FIXTURE = FIXTURES / "plenty_order_bundle.json"
 
 
 def _order(

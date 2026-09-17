@@ -14,8 +14,8 @@ different parents is split back apart (see ``assign_former_parent_ids``).
 from decimal import Decimal
 from typing import NamedTuple
 
-from dhl2mh.bundles import is_service
-from dhl2mh.mapping import (
+from dhl2mh.domain.bundles import is_service
+from dhl2mh.mapping.constants import (
     COLOR_GROUP_ID,
     SECOND_CHOICE_TAG_ID,
     SHOPWARE_PRODUCT_NUMBER_ALIASES,
@@ -141,7 +141,7 @@ def product_model_name(info: SwProductInfo) -> str | None:
     parts must be present; ``None`` means Shopware has no usable designation for
     this article. It is deliberately not backfilled with the Plenty
     order_item_name — that is a description, not a model number, and an article
-    left without one gets its order skipped (``filter.require_model_names``).
+    left without one gets its order skipped (``domain.filter.require_model_names``).
     """
     manufacturer = (info.manufacturer_number or "").strip()
     color = (info.color(COLOR_GROUP_ID) or "").strip()

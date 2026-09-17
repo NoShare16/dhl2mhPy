@@ -53,7 +53,7 @@ class DhlClient:
     @staticmethod
     def _build_basic_auth(username: str, password: str) -> str:
         sha1_hex_upper = hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
-        creds = f"{username}:{sha1_hex_upper}".encode("utf-8")
+        creds = f"{username}:{sha1_hex_upper}".encode()
         return "Basic " + base64.b64encode(creds).decode("ascii")
 
     # ── upload ──────────────────────────────────────────────────────────────

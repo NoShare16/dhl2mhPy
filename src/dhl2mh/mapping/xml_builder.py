@@ -13,7 +13,7 @@ from typing import Final
 
 from lxml import etree
 
-from dhl2mh.mapping import STOCK_LIMITATION_ARTICLE
+from dhl2mh.mapping.constants import STOCK_LIMITATION_ARTICLE
 from dhl2mh.models import OrderItem, PlentyOrder
 
 DSI_NS: Final = "http://www.it4logistics.de/i4ldata/ext"
