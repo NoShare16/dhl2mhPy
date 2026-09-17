@@ -22,7 +22,7 @@ SERVICE_ISEK: Final = 783149        # → ISEK
 SERVICE_ISEK_KG: Final = 783172     # → ISEK ("Installationsservice - KG")
 SERVICE_KF_EAN: Final = 783141      # → KF + E-AN
 SERVICE_EAN: Final = 783140         # → E-AN
-SERVICE_SVG: Final = 783146         # → SVG
+SERVICE_SVW: Final = 783146         # → SVW (Schlauchverlängerung Weiße Ware; DHL-Kürzel seit 09/2026, vorher SVG)
 SERVICE_LA: Final = 783145          # → LA
 SERVICE_DI: Final = 783151          # → DI
 SERVICE_INSTALL: Final = 783139     # → AWS (Festwasser) / E-AN (Herde) / IS (default)
@@ -39,7 +39,7 @@ SERVICE_WHITELIST: Final[frozenset[int]] = frozenset(
         SERVICE_ISEK_KG,
         SERVICE_KF_EAN,
         SERVICE_EAN,
-        SERVICE_SVG,
+        SERVICE_SVW,
         SERVICE_LA,
         SERVICE_DI,
         SERVICE_INSTALL,
@@ -147,7 +147,7 @@ _STATIC_MATCH_CODES: Final[dict[int, tuple[str, ...]]] = {
     SERVICE_ISEK_KG: ("ISEK",),
     SERVICE_KF_EAN: ("KF", "E-AN"),
     SERVICE_EAN: ("E-AN",),
-    SERVICE_SVG: ("SVG",),
+    SERVICE_SVW: ("SVW",),
     SERVICE_LA: ("LA",),
     SERVICE_DI: ("DI",),
     SERVICE_SWG: ("SWG",),
