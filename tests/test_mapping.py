@@ -18,7 +18,7 @@ from dhl2mh.mapping import (
     SERVICE_ISEK_KG,
     SERVICE_KF_EAN,
     SERVICE_LA,
-    SERVICE_SVG,
+    SERVICE_SVW,
     SERVICE_SWG,
     SERVICE_VPR,
     SERVICE_WHITELIST,
@@ -39,7 +39,7 @@ from dhl2mh.mapping import (
         (SERVICE_ISEK, ["ISEK"]),
         (SERVICE_ISEK_KG, ["ISEK"]),
         (SERVICE_EAN, ["E-AN"]),
-        (SERVICE_SVG, ["SVG"]),
+        (SERVICE_SVW, ["SVW"]),
         (SERVICE_LA, ["LA"]),
         (SERVICE_DI, ["DI"]),
         (SERVICE_SWG, ["SWG"]),
@@ -99,7 +99,7 @@ def test_whitelist_contains_all_14_known_service_ids():
     expected = {
         SERVICE_AG, SERVICE_AWS_DPW, SERVICE_AWS, SERVICE_DPW,
         SERVICE_ISEK, SERVICE_ISEK_KG, SERVICE_KF_EAN, SERVICE_EAN,
-        SERVICE_SVG, SERVICE_LA, SERVICE_DI, SERVICE_INSTALL,
+        SERVICE_SVW, SERVICE_LA, SERVICE_DI, SERVICE_INSTALL,
         SERVICE_SWG, SERVICE_VPR,
     }
     assert SERVICE_WHITELIST == expected

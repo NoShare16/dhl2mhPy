@@ -245,7 +245,7 @@ Pro Bundle (genau 1 Artikel) werden die Service-IDs in DHL-MatchCodes übersetzt
 und in den Artikel gefaltet.
 
 **Statische Zuordnungen** (Auszug): `AG→AG`, `AWS+DPW`, `KF+E-AN` (zwei Codes aus
-einer ID), `SVG`, `LA`, `DI`, …
+einer ID), `SVW`, `LA`, `DI`, …
 
 **`SERVICE_INSTALL` (783139) — kontextabhängig (AWS hat Vorrang):**
 
